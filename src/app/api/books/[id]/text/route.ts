@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
-import { join } from 'path'
+import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -8,11 +7,17 @@ export async function GET(
 ) {
   const { id } = await params
   try {
-    const filePath = join(process.cwd(), 'download', `${id}.txt`)
-    const text = await readFile(filePath, 'utf-8')
-    return NextResponse.json({ text })
+    const book = await db.book.findUnique({
+      where: { id },
+      select: { textContent: true }
+    })
+    
+    if (!book || !book.textContent) {
+      return NextResponse.json({ text: 'Contenido de demostración. Sube un PDF para leer su contenido real.' })
+    }
+    
+    return NextResponse.json({ text: book.textContent })
   } catch {
-    // If file doesn't exist, return demo text
     return NextResponse.json({ text: 'Contenido de demostración. Sube un PDF para leer su contenido real.' })
   }
 }

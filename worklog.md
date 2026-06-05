@@ -159,3 +159,28 @@ Stage Summary:
 - On real mobile devices it automatically fills the screen
 - This solves the user's issue of not being able to preview the mobile experience
 - The sandbox URL cannot be accessed from external devices (phones) - this is a fundamental limitation of the development environment
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Migrate from SQLite to PostgreSQL for Vercel deployment
+
+Work Log:
+- Updated prisma/schema.prisma: changed datasource provider from "sqlite" to "postgresql"
+- Added `textContent String?` field to Book model to store extracted PDF text in DB instead of local files
+- Updated /api/books/upload/route.ts: removed `writeFile`, `mkdir` imports from 'fs/promises' and `join` from 'path'; changed book creation to include `textContent: text` and `filePath: ''`; deleted file writing code (mkdir + writeFile to download directory)
+- Updated /api/books/[id]/text/route.ts: completely rewrote to fetch text from DB (`db.book.findUnique` with `select: { textContent: true }`) instead of `readFile` from local filesystem; removed all fs/path imports
+- Updated /api/books/route.ts: changed from `include` to `select` to explicitly exclude `textContent` from list queries (large field, not needed in book list)
+- Updated /api/books/[id]/route.ts: changed from `include` to `select` in GET handler to explicitly exclude `textContent` from book detail response
+- Updated vercel.json: changed buildCommand to `prisma generate && next build`
+- Updated package.json: added `postinstall: "prisma generate"` script
+- Ran `bun run db:generate` — Prisma Client generated successfully for PostgreSQL
+- Ran `bun run lint` — no errors
+- store.ts does NOT need textContent field in BookItem interface since text is always fetched via the dedicated /text endpoint, never stored in client state
+
+Stage Summary:
+- All filesystem operations (writeFile, readFile, mkdir) removed from API routes
+- Book text content now stored in database `textContent` field instead of local files
+- Prisma schema switched from SQLite to PostgreSQL (compatible with Vercel Postgres/Neon)
+- All queries that return book data explicitly exclude textContent to avoid transferring large text unnecessarily
+- App is ready for Vercel deployment with a PostgreSQL DATABASE_URL

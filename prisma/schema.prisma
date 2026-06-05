@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -46,6 +46,7 @@ model Book {
   estimatedMin   Int       @default(0) // estimated reading time in minutes
   isFinished     Boolean   @default(false)
   language       String    @default("es")
+  textContent    String?   // extracted text stored in DB instead of file
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           User      @relation(fields: [userId], references: [id])

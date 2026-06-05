@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { extractPdfText } from '@/lib/pdf-extract'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 import { createHash } from 'crypto'
 
 // Nice cover colors for book cards
@@ -112,28 +110,23 @@ export async function POST(request: NextRequest) {
     const totalChars = text.length
     const estimatedMin = Math.ceil(text.split(/\s+/).filter(Boolean).length / 150)
 
-    // Create the book record
+    // Create the book record with text stored in DB
     const book = await db.book.create({
       data: {
         userId: user.id,
         title,
         author,
         fileName: file.name,
-        filePath: `download/${file.name}`,
+        filePath: '',  // No local file path needed
         fileHash,
         coverColor,
         totalPages,
         totalChars,
         estimatedMin,
         language: 'es',
+        textContent: text,  // Store text in DB
       }
     })
-
-    // Save extracted text to download directory
-    const downloadDir = join(process.cwd(), 'download')
-    await mkdir(downloadDir, { recursive: true })
-    const textFilePath = join(downloadDir, `${book.id}.txt`)
-    await writeFile(textFilePath, text, 'utf-8')
 
     return NextResponse.json({ duplicate: false, book })
   } catch (error) {

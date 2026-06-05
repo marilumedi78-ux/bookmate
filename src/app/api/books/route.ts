@@ -19,7 +19,25 @@ export async function GET() {
     const books = await db.book.findMany({
       where: { userId: user.id },
       orderBy: { updatedAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        author: true,
+        fileName: true,
+        filePath: true,
+        fileHash: true,
+        coverColor: true,
+        totalPages: true,
+        currentPage: true,
+        currentCharIdx: true,
+        totalChars: true,
+        readChars: true,
+        estimatedMin: true,
+        isFinished: true,
+        language: true,
+        createdAt: true,
+        updatedAt: true,
         _count: {
           select: { highlights: true }
         }
