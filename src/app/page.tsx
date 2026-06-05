@@ -43,6 +43,11 @@ import {
   Trash2,
   Loader2,
   AlertTriangle,
+  User,
+  Settings,
+  Mail,
+  Shield,
+  Copy,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -1542,202 +1547,457 @@ function StatsTab() {
 // ──────────────────────────────────────────────
 // PRICING TAB
 // ──────────────────────────────────────────────
-const PLANS = [
-  {
-    id: 'free' as const,
-    name: 'Gratis',
-    price: 0,
-    annualPrice: 0,
-    description: 'Para empezar a leer',
-    features: [
-      { text: '3 libros máximo', included: true },
-      { text: 'TTS básico', included: true },
-      { text: 'Seguimiento de progreso', included: true },
-      { text: '1 sonido ambiental', included: true },
-      { text: 'Explica limitado (3/día)', included: true },
-      { text: 'Sin anuncios', included: false },
-      { text: 'Libros ilimitados', included: false },
-      { text: 'Todos los sonidos ambientales', included: false },
-    ],
-    icon: BookOpen,
-  },
-  {
-    id: 'plus' as const,
-    name: 'Plus',
-    price: 12.99,
-    annualPrice: 129.99,
-    description: 'Para lectores regulares',
-    features: [
-      { text: 'Libros ilimitados', included: true },
-      { text: 'TTS de alta calidad', included: true },
-      { text: 'Todos los sonidos ambientales', included: true },
-      { text: 'Explica ilimitado', included: true },
-      { text: 'Sin anuncios', included: true },
-      { text: 'Resúmenes de capítulos', included: true },
-      { text: 'Estadísticas avanzadas', included: false },
-      { text: 'Soporte prioritario', included: false },
-    ],
-    icon: Star,
-    popular: true,
-  },
-  {
-    id: 'pro' as const,
-    name: 'Pro',
-    price: 17.99,
-    annualPrice: 179.99,
-    description: 'Para lectores apasionados',
-    features: [
-      { text: 'Todo de Plus', included: true },
-      { text: 'Estadísticas avanzadas', included: true },
-      { text: 'Soporte prioritario', included: true },
-      { text: 'IA personalizada', included: true },
-      { text: 'Exportar notas y resaltados', included: true },
-      { text: 'Clubes de lectura', included: true },
-      { text: 'Acceso anticipado', included: true },
-      { text: 'Badge exclusivo', included: true },
-    ],
-    icon: Crown,
-  },
-]
-
 function PricingTab() {
-  const { userPlan, setUserPlan, setIsVip } = useBookMateStore()
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
+  const {
+    userPlan,
+    setUserPlan,
+    isVip,
+    setIsVip,
+    isAdminPanelOpen,
+    setIsAdminPanelOpen,
+    adminTapCount,
+    incrementAdminTap,
+    resetAdminTap,
+  } = useBookMateStore()
 
-  const handleSelectPlan = (planId: 'free' | 'plus' | 'pro') => {
-    setUserPlan(planId)
-    setIsVip(planId !== 'free')
-  }
+  const [isAnnual, setIsAnnual] = useState(false)
+  const [switchingPlan, setSwitchingPlan] = useState(false)
+  const [vipEmails, setVipEmails] = useState<{ id: string; email: string; createdAt: string }[]>([])
+  const [newVipEmail, setNewVipEmail] = useState('')
+  const [addingVip, setAddingVip] = useState(false)
+  const [currentEmail, setCurrentEmail] = useState('demo@bookmate.app')
+
+  // Load current user plan on mount
+  useEffect(() => {
+    const loadPlan = async () => {
+      try {
+        const res = await fetch('/api/stats')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.user) {
+            setUserPlan(data.user.plan || 'free')
+            setIsVip(data.user.isVip || false)
+            setCurrentEmail(data.user.email || 'demo@bookmate.app')
+          }
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    loadPlan()
+  }, [setUserPlan, setIsVip])
+
+  // Load VIP emails when admin panel opens
+  useEffect(() => {
+    if (isAdminPanelOpen) {
+      const loadVipEmails = async () => {
+        try {
+          const res = await fetch('/api/vip')
+          if (res.ok) {
+            const data = await res.json()
+            setVipEmails(data.vipEmails || [])
+          }
+        } catch {
+          // silently fail
+        }
+      }
+      loadVipEmails()
+    }
+  }, [isAdminPanelOpen])
+
+  const handleSwitchPlan = useCallback(async (plan: 'free' | 'plus' | 'pro') => {
+    setSwitchingPlan(true)
+    try {
+      const res = await fetch('/api/plan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUserPlan(data.plan)
+        setIsVip(data.isVip || false)
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSwitchingPlan(false)
+    }
+  }, [setUserPlan, setIsVip])
+
+  const handleAddVip = useCallback(async () => {
+    if (!newVipEmail.trim()) return
+    setAddingVip(true)
+    try {
+      const res = await fetch('/api/vip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newVipEmail.trim() }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.vip) {
+          setVipEmails((prev) => [data.vip, ...prev])
+        }
+        setNewVipEmail('')
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setAddingVip(false)
+    }
+  }, [newVipEmail])
+
+  const handleRemoveVip = useCallback(async (email: string) => {
+    try {
+      const res = await fetch('/api/vip', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (res.ok) {
+        setVipEmails((prev) => prev.filter((v) => v.email !== email))
+      }
+    } catch {
+      // silently fail
+    }
+  }, [])
+
+  const handleVersionTap = useCallback(() => {
+    incrementAdminTap()
+    if (adminTapCount + 1 >= 7) {
+      setIsAdminPanelOpen(true)
+      resetAdminTap()
+    }
+  }, [adminTapCount, incrementAdminTap, setIsAdminPanelOpen, resetAdminTap])
+
+  const planLabel = userPlan === 'pro' ? 'Pro' : userPlan === 'plus' ? 'Plus' : 'Gratis'
+  const planColor = userPlan === 'pro' ? 'bg-primary text-primary-foreground' : userPlan === 'plus' ? 'bg-accent text-accent-foreground' : 'bg-secondary text-secondary-foreground'
+
+  const plans = [
+    {
+      id: 'free' as const,
+      name: 'Gratis',
+      price: '$0',
+      period: '',
+      features: [
+        '3 libros máximo',
+        'Voz Google TTS',
+        'Lectura visual ilimitada',
+        '5 Explica/mes',
+        'Velocidad 1x',
+      ],
+    },
+    {
+      id: 'plus' as const,
+      name: 'Plus',
+      price: isAnnual ? '$9.99' : '$12.99',
+      period: isAnnual ? '/año' : '/mes',
+      popular: true,
+      features: [
+        'Libros ilimitados',
+        'Voz OpenAI TTS',
+        'Todos los sonidos ambientales',
+        '50 Explica/mes',
+        'Velocidad hasta 2x',
+        'Subrayados ilimitados',
+      ],
+    },
+    {
+      id: 'pro' as const,
+      name: 'Pro',
+      price: isAnnual ? '$14.99' : '$17.99',
+      period: isAnnual ? '/año' : '/mes',
+      features: [
+        'Todo de Plus',
+        'OCR Scanner (cámara)',
+        'Explica ilimitado',
+        'Prioridad en nuevas funciones',
+        'Soporte prioritario',
+        'Exportar notas',
+      ],
+    },
+  ]
 
   return (
-    <div className="px-4 pt-6 space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-foreground">Elige tu plan</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Desbloquea todo el potencial de BookMate
-        </p>
+    <div className="px-4 pt-6 pb-8">
+      {/* ── PROFILE SECTION ── */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Mi Perfil</h1>
+        <p className="text-muted-foreground text-sm mt-1">Gestiona tu plan y cuenta</p>
       </div>
 
-      {/* Billing toggle */}
-      <div className="flex items-center justify-center gap-3">
-        <Button
-          variant={billing === 'monthly' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setBilling('monthly')}
-        >
+      {/* Current Plan Card */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+              {isVip ? (
+                <Crown className="size-6 text-primary" />
+              ) : (
+                <User className="size-6 text-primary" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-foreground">{currentEmail}</p>
+                {isVip && (
+                  <Badge className="bg-primary text-primary-foreground gap-1">
+                    <Crown className="size-3" />
+                    VIP
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className={planColor}>{planLabel}</Badge>
+                {userPlan !== 'free' && !isVip && (
+                  <span className="text-xs text-muted-foreground">Activo</span>
+                )}
+                {isVip && (
+                  <span className="text-xs text-primary font-medium">Acceso ilimitado gratis</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Plan Switcher (for testing) */}
+      <Card className="mb-6 border-dashed">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Settings className="size-4" />
+            Cambiar Plan (Prueba)
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Cambia entre planes para probar todas las funciones
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {(['free', 'plus', 'pro'] as const).map((plan) => (
+              <Button
+                key={plan}
+                variant={userPlan === plan ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1 capitalize"
+                onClick={() => handleSwitchPlan(plan)}
+                disabled={switchingPlan}
+              >
+                {switchingPlan ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  plan === 'free' ? 'Gratis' : plan === 'plus' ? 'Plus' : 'Pro'
+                )}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── PRICING SECTION ── */}
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-foreground mb-1">Elige tu plan</h2>
+        <p className="text-muted-foreground text-sm">Desbloquea el potencial completo de BookMate</p>
+      </div>
+
+      {/* Annual toggle */}
+      <div className="flex items-center justify-center gap-3 mb-6">
+        <span className={`text-sm ${!isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
           Mensual
-        </Button>
-        <Button
-          variant={billing === 'annual' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setBilling('annual')}
+        </span>
+        <button
+          onClick={() => setIsAnnual(!isAnnual)}
+          className={`relative w-11 h-6 rounded-full transition-colors ${isAnnual ? 'bg-primary' : 'bg-muted'}`}
+          aria-label={isAnnual ? 'Cambiar a mensual' : 'Cambiar a anual'}
         >
+          <span
+            className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform ${isAnnual ? 'translate-x-5' : ''}`}
+          />
+        </button>
+        <span className={`text-sm ${isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
           Anual
-          <Badge className="ml-1.5 bg-accent text-accent-foreground border-0 text-[10px]">
-            -17%
-          </Badge>
-        </Button>
+          <Badge className="ml-1.5 bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">-23%</Badge>
+        </span>
       </div>
 
       {/* Plan cards */}
-      <div className="space-y-4 max-w-md mx-auto">
-        {PLANS.map((plan, i) => {
-          const PlanIcon = plan.icon
-          const isCurrent = userPlan === plan.id
-          const price = billing === 'annual' ? plan.annualPrice : plan.price
-          const monthlyEquivalent = plan.annualPrice > 0 ? (plan.annualPrice / 12).toFixed(2) : '0'
-
-          return (
-            <motion.div
-              key={plan.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1, duration: 0.3 }}
-            >
-              <Card
-                className={`py-4 relative overflow-hidden ${
-                  isCurrent ? 'border-primary ring-2 ring-primary/20' : ''
-                } ${plan.popular ? 'border-accent' : ''}`}
-              >
-                {plan.popular && (
-                  <div className="absolute top-0 right-0 bg-accent text-accent-foreground text-[10px] font-bold px-3 py-1 rounded-bl-lg">
-                    Popular
-                  </div>
-                )}
-
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`size-10 rounded-full flex items-center justify-center ${
-                      isCurrent ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-                    }`}>
-                      <PlanIcon className="size-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{plan.name}</CardTitle>
-                      <CardDescription>{plan.description}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {/* Price */}
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-foreground">
-                      ${price === 0 ? '0' : price.toFixed(2)}
-                    </span>
-                    {price > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        /{billing === 'annual' ? 'año' : 'mes'}
-                      </span>
-                    )}
-                  </div>
-                  {billing === 'annual' && plan.annualPrice > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Equivalente a ${monthlyEquivalent}/mes
-                    </p>
+      <div className="space-y-4">
+        {plans.map((plan, i) => (
+          <motion.div
+            key={plan.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1, duration: 0.3 }}
+          >
+            <Card className={`relative overflow-hidden ${userPlan === plan.id ? 'ring-2 ring-primary' : ''} ${plan.popular ? 'border-primary' : ''}`}>
+              {plan.popular && (
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+                  POPULAR
+                </div>
+              )}
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  {plan.name}
+                  {userPlan === plan.id && (
+                    <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Actual</Badge>
                   )}
-
-                  {/* Features */}
-                  <ul className="space-y-2">
-                    {plan.features.map((feature) => (
-                      <li
-                        key={feature.text}
-                        className={`flex items-center gap-2 text-sm ${
-                          feature.included ? 'text-foreground' : 'text-muted-foreground/50'
-                        }`}
-                      >
-                        {feature.included ? (
-                          <CheckCircle2 className="size-4 text-primary shrink-0" />
-                        ) : (
-                          <X className="size-4 text-muted-foreground/30 shrink-0" />
-                        )}
-                        {feature.text}
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* CTA */}
+                </CardTitle>
+                <CardDescription>
+                  <span className="text-2xl font-bold text-foreground">{plan.price}</span>
+                  {plan.period && (
+                    <span className="text-muted-foreground text-sm">{plan.period}</span>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1.5">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="size-3.5 text-primary shrink-0" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+              <CardFooter>
+                {userPlan === plan.id ? (
+                  <Button variant="outline" className="w-full" disabled>
+                    Plan actual
+                  </Button>
+                ) : (
                   <Button
                     className="w-full"
-                    variant={isCurrent ? 'secondary' : plan.popular ? 'default' : 'outline'}
-                    onClick={() => handleSelectPlan(plan.id)}
+                    variant={plan.popular ? 'default' : 'outline'}
+                    onClick={() => handleSwitchPlan(plan.id)}
+                    disabled={switchingPlan}
                   >
-                    {isCurrent ? (
-                      <>
-                        <Check className="size-4 mr-1" />
-                        Plan actual
-                      </>
-                    ) : (
-                      plan.price === 0 ? 'Comenzar gratis' : 'Seleccionar plan'
-                    )}
+                    {switchingPlan ? <Loader2 className="size-4 animate-spin" /> : 'Cambiar a este plan'}
                   </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )
-        })}
+                )}
+              </CardFooter>
+            </Card>
+          </motion.div>
+        ))}
       </div>
+
+      {/* ── APP VERSION (secret admin entry point) ── */}
+      <div className="mt-8 text-center">
+        <button
+          onClick={handleVersionTap}
+          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          Versión de la app: 1.0.0
+          {adminTapCount > 0 && adminTapCount < 7 && (
+            <span className="ml-1 text-primary/50">({7 - adminTapCount} más...)</span>
+          )}
+        </button>
+      </div>
+
+      {/* ── SECRET ADMIN PANEL ── */}
+      <Dialog open={isAdminPanelOpen} onOpenChange={setIsAdminPanelOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="size-5 text-primary" />
+              Panel de Administración
+            </DialogTitle>
+            <DialogDescription>
+              Gestiona usuarios VIP y configuraciones de BookMate
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Add VIP email */}
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                <Mail className="size-4" />
+                Emails VIP — Acceso Ilimitado Gratis
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Los usuarios VIP tienen acceso Pro gratis. Útil para familia y testing.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="email@ejemplo.com"
+                  value={newVipEmail}
+                  onChange={(e) => setNewVipEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddVip()}
+                  type="email"
+                  className="flex-1"
+                />
+                <Button onClick={handleAddVip} disabled={addingVip || !newVipEmail.trim()} size="sm">
+                  {addingVip ? <Loader2 className="size-4 animate-spin" /> : 'Agregar'}
+                </Button>
+              </div>
+            </div>
+
+            {/* VIP list */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                Emails VIP ({vipEmails.length})
+              </h4>
+              {vipEmails.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  No hay emails VIP configurados
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {vipEmails.map((vip) => (
+                    <div
+                      key={vip.id}
+                      className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
+                    >
+                      <Mail className="size-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm text-foreground truncate flex-1">{vip.email}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => handleRemoveVip(vip.email)}
+                        aria-label="Eliminar VIP"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick actions */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                Acciones rápidas
+              </h4>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={async () => {
+                    await handleSwitchPlan('pro')
+                    setIsVip(true)
+                  }}
+                >
+                  <Crown className="size-4 mr-2" />
+                  Activar modo VIP para mí
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={async () => {
+                    await handleSwitchPlan('free')
+                    setIsVip(false)
+                  }}
+                >
+                  <User className="size-4 mr-2" />
+                  Volver a plan Gratis
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

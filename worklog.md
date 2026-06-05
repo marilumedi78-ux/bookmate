@@ -110,3 +110,30 @@ Stage Summary:
 - Users can install it on their phone's home screen
 - App icons generated for both Android and iOS
 - Install banner shows automatically on supported browsers
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Update PricingTab with plan switching, VIP badge, and secret admin panel
+
+Work Log:
+- Added User, Settings, Mail, Shield, Copy imports to lucide-react block
+- Removed old PLANS constant and replaced PricingTab function entirely
+- New PricingTab features:
+  A) Profile section at top showing current plan, VIP badge, and email (fetched from /api/stats)
+  B) Plan switching buttons (Free/Plus/Pro) that call PATCH /api/plan
+  C) 3 pricing cards with annual/monthly toggle, feature lists, and "Cambiar a este plan" buttons
+  D) Secret admin panel that opens when user taps "Versión de la app" 7 times
+  E) VIP email management in admin panel (add/remove VIP emails via /api/vip)
+  F) Quick actions in admin panel: "Activar modo VIP" and "Volver a plan Gratis"
+- Updated /api/stats route to include `user` object with email, plan, isVip fields
+- Verified /api/plan and /api/vip routes already existed and support all required methods
+- Store already had all needed fields: userPlan, isVip, isAdminPanelOpen, adminTapCount, etc.
+- Lint passes with no errors
+- Dev server compiles successfully
+
+Stage Summary:
+- PricingTab now has full plan switching, VIP badge display, and secret admin panel
+- Admin panel accessible via 7-tap on version number
+- VIP email CRUD fully functional via /api/vip endpoint
+- Plan changes persisted to database via /api/plan endpoint

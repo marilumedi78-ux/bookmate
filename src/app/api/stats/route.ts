@@ -122,6 +122,11 @@ export async function GET() {
       : achievements
 
     return NextResponse.json({
+      user: {
+        email: user.email,
+        plan: user.plan,
+        isVip: user.isVip,
+      },
       stats: {
         totalBooks,
         finishedBooks,
