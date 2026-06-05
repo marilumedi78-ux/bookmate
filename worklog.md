@@ -137,3 +137,25 @@ Stage Summary:
 - Admin panel accessible via 7-tap on version number
 - VIP email CRUD fully functional via /api/vip endpoint
 - Plan changes persisted to database via /api/plan endpoint
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Add phone frame wrapper so app always looks like a mobile phone in preview
+
+Work Log:
+- User reported preview panel doesn't have "Open in New Tab" or mobile device toggle buttons
+- User also tried copying URL to WhatsApp on phone, got "project expired" because sandbox is not public internet
+- Added phone frame wrapper: on desktop the app appears inside a phone-shaped container (rounded corners, border, shadow, max-width 430px, height 844px like iPhone 14)
+- On actual mobile devices (small screens), the app fills the full screen as normal
+- Added simulated status bar with time (9:41), WiFi and battery icons (only visible in phone frame mode)
+- Changed main content area to overflow-y-auto for scrolling within phone frame
+- Changed Reader tab height from calc(100vh-8.5rem) to calc(100dvh-10rem) for better mobile compatibility
+- Verified all 4 tabs render correctly within phone frame via Agent Browser
+- Lint passes with no errors
+
+Stage Summary:
+- App now displays inside a realistic phone frame when viewed on desktop/preview
+- On real mobile devices it automatically fills the screen
+- This solves the user's issue of not being able to preview the mobile experience
+- The sandbox URL cannot be accessed from external devices (phones) - this is a fundamental limitation of the development environment

@@ -207,100 +207,112 @@ export default function Home() {
   ]
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Install Banner */}
-      <AnimatePresence>
-        {showInstallBanner && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-primary/10 border-b px-4 py-3 flex items-center gap-3">
-              <BookMateLogo size={28} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">Instalar BookMate</p>
-                <p className="text-xs text-muted-foreground">Acceso rápido desde tu pantalla de inicio</p>
-              </div>
-              <Button size="sm" onClick={handleInstall} className="shrink-0">
-                Instalar
-              </Button>
-              <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissInstall}>
-                <X className="size-3.5" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {/* ── HEADER ── */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2">
-            <BookMateLogo size={32} />
-            <span className="font-bold text-lg text-foreground">BookMate</span>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+      {/* Phone frame wrapper - on desktop shows as phone, on actual phone fills screen */}
+      <div className="w-full max-w-[430px] h-screen sm:h-[844px] sm:my-4 sm:rounded-[2.5rem] sm:shadow-2xl sm:border-[8px] sm:border-gray-800 sm:overflow-hidden relative bg-background flex flex-col">
+        {/* Status bar (only visible in phone frame mode) */}
+        <div className="hidden sm:flex items-center justify-between px-6 py-1.5 bg-background/90 text-[11px] text-foreground/70 font-medium">
+          <span>9:41</span>
+          <div className="flex items-center gap-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="6" width="18" height="12" rx="2"/><path d="M23 13v-2"/></svg>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDarkToggle}
-                aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-              >
-                {isDarkMode ? <Sun className="size-5" /> : <Moon className="size-5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isDarkMode ? 'Modo claro' : 'Modo oscuro'}
-            </TooltipContent>
-          </Tooltip>
         </div>
-      </header>
 
-      {/* ── MAIN CONTENT ── */}
-      <main className="flex-1 pb-20">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === 'library' && <LibraryTab />}
-            {activeTab === 'reader' && <ReaderTab />}
-            {activeTab === 'stats' && <StatsTab />}
-            {activeTab === 'pricing' && <PricingTab />}
-          </motion.div>
+        {/* Install Banner */}
+        <AnimatePresence>
+          {showInstallBanner && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-primary/10 border-b px-4 py-3 flex items-center gap-3">
+                <BookMateLogo size={28} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">Instalar BookMate</p>
+                  <p className="text-xs text-muted-foreground">Acceso rápido desde tu pantalla de inicio</p>
+                </div>
+                <Button size="sm" onClick={handleInstall} className="shrink-0">
+                  Instalar
+                </Button>
+                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissInstall}>
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
-      </main>
+        {/* ── HEADER ── */}
+        <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
+          <div className="flex items-center justify-between px-4 h-14">
+            <div className="flex items-center gap-2">
+              <BookMateLogo size={32} />
+              <span className="font-bold text-lg text-foreground">BookMate</span>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDarkToggle}
+                  aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                >
+                  {isDarkMode ? <Sun className="size-5" /> : <Moon className="size-5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isDarkMode ? 'Modo claro' : 'Modo oscuro'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
 
-      {/* ── FOOTER / TAB NAV ── */}
-      <footer className="sticky bottom-0 z-50 bg-background/80 backdrop-blur-md border-t mt-auto">
-        <nav className="flex" aria-label="Navegación principal">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex flex-col items-center justify-center py-2.5 transition-colors ${
-                  isActive
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={tab.label}
-              >
-                <Icon className="size-5 mb-0.5" />
-                <span className="text-[11px] font-medium">{tab.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-      </footer>
+        {/* ── MAIN CONTENT ── */}
+        <main className="flex-1 pb-20 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeTab === 'library' && <LibraryTab />}
+              {activeTab === 'reader' && <ReaderTab />}
+              {activeTab === 'stats' && <StatsTab />}
+              {activeTab === 'pricing' && <PricingTab />}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        {/* ── FOOTER / TAB NAV ── */}
+        <footer className="sticky bottom-0 z-50 bg-background/80 backdrop-blur-md border-t mt-auto">
+          <nav className="flex" aria-label="Navegación principal">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center justify-center py-2.5 transition-colors ${
+                    isActive
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={tab.label}
+                >
+                  <Icon className="size-5 mb-0.5" />
+                  <span className="text-[11px] font-medium">{tab.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </footer>
+      </div>
     </div>
   )
 }
@@ -989,7 +1001,7 @@ function ReaderTab() {
   const ReadingModeIcon = readingModeIcon
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8.5rem)]">
+    <div className="flex flex-col h-[calc(100dvh-10rem)]">
       {/* Book title */}
       <div className="px-4 py-3 border-b">
         <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
