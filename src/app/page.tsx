@@ -207,11 +207,11 @@ export default function Home() {
   ]
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-gray-200 dark:bg-gray-900 md:bg-gray-200">
       {/* Phone frame wrapper - on desktop shows as phone, on actual phone fills screen */}
-      <div className="w-full max-w-[430px] h-screen sm:h-[844px] sm:my-4 sm:rounded-[2.5rem] sm:shadow-2xl sm:border-[8px] sm:border-gray-800 sm:overflow-hidden relative bg-background flex flex-col">
-        {/* Status bar (only visible in phone frame mode) */}
-        <div className="hidden sm:flex items-center justify-between px-6 py-1.5 bg-background/90 text-[11px] text-foreground/70 font-medium">
+      <div className="w-full max-w-[430px] h-[100dvh] md:h-[844px] md:my-4 md:rounded-[2.5rem] md:shadow-2xl md:border-[8px] md:border-gray-800 md:overflow-hidden relative bg-background flex flex-col">
+        {/* Status bar (only visible in phone frame mode on desktop) */}
+        <div className="hidden md:flex items-center justify-between px-6 py-1.5 bg-background/90 text-[11px] text-foreground/70 font-medium">
           <span>9:41</span>
           <div className="flex items-center gap-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
