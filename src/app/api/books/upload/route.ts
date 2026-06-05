@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import pdf from 'pdf-parse'
+import { extractPdfText } from '@/lib/pdf-extract'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'crypto'
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract text from PDF
-    const data = await pdf(buffer)
+    const data = await extractPdfText(buffer)
     const text = data.text || ''
 
     // Extract metadata
