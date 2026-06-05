@@ -48,6 +48,8 @@ import {
   Mail,
   Shield,
   Copy,
+  LayoutGrid,
+  Users,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -339,6 +341,7 @@ function LibraryTab() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [loadingBooks, setLoadingBooks] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<BookItem | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'author'>('grid')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch books on mount
@@ -518,15 +521,33 @@ function LibraryTab() {
         <p className="text-muted-foreground text-sm mt-1">Tus libros, tu ritmo</p>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar libro o autor..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search + View Toggle */}
+      <div className="flex items-center gap-2 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar libro o autor..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={viewMode === 'author' ? 'default' : 'outline'}
+              size="icon"
+              className="size-10 shrink-0"
+              onClick={() => setViewMode(viewMode === 'grid' ? 'author' : 'grid')}
+              aria-label={viewMode === 'grid' ? 'Agrupar por autor' : 'Vista de cuadrícula'}
+            >
+              {viewMode === 'grid' ? <Users className="size-4" /> : <LayoutGrid className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {viewMode === 'grid' ? 'Agrupar por autor' : 'Vista cuadrícula'}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Loading state */}
@@ -556,8 +577,8 @@ function LibraryTab() {
         </div>
       )}
 
-      {/* Book Grid */}
-      {!loadingBooks && (
+      {/* Book Grid - Normal view */}
+      {!loadingBooks && viewMode === 'grid' && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredBooks.map((book, i) => (
             <BookCard
@@ -570,6 +591,41 @@ function LibraryTab() {
           ))}
         </div>
       )}
+
+      {/* Book Grid - Grouped by author */}
+      {!loadingBooks && viewMode === 'author' && filteredBooks.length > 0 && (() => {
+        const grouped = filteredBooks.reduce<Record<string, BookItem[]>>((acc, book) => {
+          const author = book.author || 'Desconocido'
+          if (!acc[author]) acc[author] = []
+          acc[author].push(book)
+          return acc
+        }, {})
+        const sortedAuthors = Object.keys(grouped).sort((a, b) =>
+          a.localeCompare(b, 'es', { sensitivity: 'base' })
+        )
+        return sortedAuthors.map(author => (
+          <div key={author} className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <User className="size-4 text-primary" />
+              <h3 className="font-semibold text-foreground text-sm">{author}</h3>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {grouped[author].length}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {grouped[author].map((book, i) => (
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  index={i}
+                  onOpen={handleOpenBook}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      })()}
 
       {/* Upload FAB */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
