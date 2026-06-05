@@ -43,73 +43,79 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ──────────────────────────────────────────────
+   BookMate Light Theme — warm cream & teal
+   ────────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(0.9885 0.0057 84.57);       /* #FDFBF7 warm cream */
+  --foreground: oklch(0.3211 0.005 84);             /* #333333 dark gray with warm tint */
+  --card: oklch(1 0 0);                              /* #FFFFFF white */
+  --card-foreground: oklch(0.3211 0.005 84);         /* dark gray */
+  --popover: oklch(0.947 0.0074 80.72);             /* #F0EDE8 slightly warm */
+  --popover-foreground: oklch(0.3211 0.005 84);      /* dark gray */
+  --primary: oklch(0.6304 0.1013 183.03);           /* #2A9D8F teal */
+  --primary-foreground: oklch(1 0 0);               /* white */
+  --secondary: oklch(0.9153 0.0216 185.99);         /* #D4E8E5 light teal tint */
+  --secondary-foreground: oklch(0.6304 0.1013 183.03); /* teal on light bg */
+  --muted: oklch(0.9576 0.0086 67.72);              /* #F5F0EB warm light gray */
+  --muted-foreground: oklch(0.6195 0.0096 67.65);   /* #8A8580 warm medium gray */
+  --accent: oklch(0.8369 0.1644 84.43);             /* #FBBF24 warm yellow */
+  --accent-foreground: oklch(0.3211 0.005 84);       /* dark gray on yellow */
+  --destructive: oklch(0.577 0.245 27.325);         /* standard red */
+  --border: oklch(0.9115 0.008 73.74);              /* #E5E1DC soft warm gray */
+  --input: oklch(0.9115 0.008 73.74);               /* #E5E1DC */
+  --ring: oklch(0.6304 0.1013 183.03);              /* teal focus ring */
+  --chart-1: oklch(0.6304 0.1013 183.03);           /* teal */
+  --chart-2: oklch(0.8369 0.1644 84.43);            /* warm yellow */
+  --chart-3: oklch(0.7116 0.1091 183.54);           /* lighter teal */
+  --chart-4: oklch(0.704 0.152 35);                 /* warm coral */
+  --chart-5: oklch(0.769 0.15 70);                  /* golden */
+  --sidebar: oklch(0.9576 0.0086 67.72);            /* warm light gray */
+  --sidebar-foreground: oklch(0.3211 0.005 84);      /* dark gray */
+  --sidebar-primary: oklch(0.6304 0.1013 183.03);   /* teal */
+  --sidebar-primary-foreground: oklch(1 0 0);        /* white */
+  --sidebar-accent: oklch(0.9153 0.0216 185.99);    /* light teal tint */
+  --sidebar-accent-foreground: oklch(0.6304 0.1013 183.03); /* teal */
+  --sidebar-border: oklch(0.9115 0.008 73.74);      /* warm gray */
+  --sidebar-ring: oklch(0.6304 0.1013 183.03);      /* teal */
 }
 
+/* ──────────────────────────────────────────────
+   BookMate Dark Theme — dark blue-gray & teal
+   ────────────────────────────────────────────── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.2643 0.0313 252.77);        /* #1A2634 dark blue-gray */
+  --foreground: oklch(0.9206 0.008 73.74);          /* #E8E4DF off-white */
+  --card: oklch(0.3199 0.0402 253.23);              /* #243447 slightly lighter than bg */
+  --card-foreground: oklch(0.9206 0.008 73.74);      /* off-white */
+  --popover: oklch(0.3199 0.0402 253.23);           /* #243447 */
+  --popover-foreground: oklch(0.9206 0.008 73.74);   /* off-white */
+  --primary: oklch(0.7116 0.1091 183.54);           /* #3DB8A9 lighter teal */
+  --primary-foreground: oklch(0.2643 0.0313 252.77); /* dark blue-gray */
+  --secondary: oklch(0.3621 0.0391 253.12);         /* #2F3F52 medium dark */
+  --secondary-foreground: oklch(0.9206 0.008 73.74); /* off-white */
+  --muted: oklch(0.3621 0.0391 253.12);             /* #2F3F52 */
+  --muted-foreground: oklch(0.615 0.0255 252.29);   /* #7A8694 medium gray-blue */
+  --accent: oklch(0.8369 0.1644 84.43);             /* #FBBF24 warm yellow */
+  --accent-foreground: oklch(0.2643 0.0313 252.77);  /* dark text on yellow */
+  --destructive: oklch(0.704 0.191 22.216);         /* standard dark red */
+  --border: oklch(0.9206 0.008 73.74 / 10%);        /* off-white low alpha */
+  --input: oklch(0.9206 0.008 73.74 / 15%);         /* off-white low alpha */
+  --ring: oklch(0.7116 0.1091 183.54);              /* lighter teal */
+  --chart-1: oklch(0.7116 0.1091 183.54);           /* lighter teal */
+  --chart-2: oklch(0.8369 0.1644 84.43);            /* warm yellow */
+  --chart-3: oklch(0.6304 0.1013 183.03);           /* teal */
+  --chart-4: oklch(0.704 0.152 35);                 /* warm coral */
+  --chart-5: oklch(0.769 0.15 70);                  /* golden */
+  --sidebar: oklch(0.3199 0.0402 253.23);           /* #243447 */
+  --sidebar-foreground: oklch(0.9206 0.008 73.74);   /* off-white */
+  --sidebar-primary: oklch(0.7116 0.1091 183.54);   /* lighter teal */
+  --sidebar-primary-foreground: oklch(0.2643 0.0313 252.77); /* dark bg */
+  --sidebar-accent: oklch(0.3621 0.0391 253.12);    /* #2F3F52 */
+  --sidebar-accent-foreground: oklch(0.9206 0.008 73.74); /* off-white */
+  --sidebar-border: oklch(0.9206 0.008 73.74 / 10%); /* off-white low alpha */
+  --sidebar-ring: oklch(0.7116 0.1091 183.54);      /* lighter teal */
 }
 
 @layer base {
@@ -119,4 +125,98 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ──────────────────────────────────────────────
+   BookMate Custom Styles
+   ────────────────────────────────────────────── */
+
+/* Smooth scrolling for the entire app */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar — thin & teal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.6304 0.1013 183.03 / 40%);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.6304 0.1013 183.03 / 70%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.7116 0.1091 183.54 / 40%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.7116 0.1091 183.54 / 70%);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.6304 0.1013 183.03 / 40%) transparent;
+}
+
+.dark * {
+  scrollbar-color: oklch(0.7116 0.1091 183.54 / 40%) transparent;
+}
+
+/* Currently-read sentence highlight — soft glow effect */
+.highlight-active {
+  background: oklch(0.8369 0.1644 84.43 / 18%);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+  box-shadow: 0 0 12px oklch(0.8369 0.1644 84.43 / 15%);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dark .highlight-active {
+  background: oklch(0.8369 0.1644 84.43 / 12%);
+  box-shadow: 0 0 12px oklch(0.8369 0.1644 84.43 / 10%);
+}
+
+/* Book cover gradient generator — apply to cover containers */
+.book-cover-gradient {
+  background: linear-gradient(
+    135deg,
+    oklch(0.6304 0.1013 183.03) 0%,
+    oklch(0.5288 0.1195 200.5) 50%,
+    oklch(0.4284 0.1277 220) 100%
+  );
+  position: relative;
+}
+
+.book-cover-gradient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    oklch(1 0 0 / 0%) 0%,
+    oklch(1 0 0 / 0%) 40%,
+    oklch(0 0 0 / 25%) 100%
+  );
+  border-radius: inherit;
+}
+
+.dark .book-cover-gradient {
+  background: linear-gradient(
+    135deg,
+    oklch(0.5304 0.0913 183.03) 0%,
+    oklch(0.4388 0.0995 200.5) 50%,
+    oklch(0.3484 0.0977 220) 100%
+  );
 }

@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,19 +8,97 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatarUrl     String?
+  plan          String   @default("free") // free, plus, pro
+  isVip         Boolean  @default(false)
+  isAdmin       Boolean  @default(false)
+  streakDays    Int      @default(0)
+  lastReadDate  String?  // YYYY-MM-DD
+  totalReadMin  Int      @default(0)
+  iaHoursUsed   Float    @default(0) // hours of IA voice used this month
+  explicaUsed   Int      @default(0) // number of "Explica" uses this month
+  ocrUsed       Int      @default(0) // number of OCR scans this month
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  books         Book[]
+  achievements  Achievement[]
+  highlights    Highlight[]
+  readingLogs   ReadingLog[]
 }
 
-model Post {
+model Book {
+  id             String    @id @default(cuid())
+  userId         String
+  title          String
+  author         String?
+  fileName       String
+  filePath       String
+  coverColor     String    @default("#4DB6AC") // generated cover color
+  totalPages     Int       @default(0)
+  currentPage    Int       @default(0)
+  currentCharIdx Int       @default(0) // character index for TTS position
+  totalChars     Int       @default(0)
+  readChars      Int       @default(0)
+  estimatedMin   Int       @default(0) // estimated reading time in minutes
+  isFinished     Boolean   @default(false)
+  language       String    @default("es")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id])
+  highlights     Highlight[]
+  readingLogs    ReadingLog[]
+
+  @@map("books")
+}
+
+model Highlight {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  userId    String
+  bookId    String
+  text      String
+  note      String?
+  color     String   @default("#FBBF24") // yellow, pink, green, blue
+  charStart Int
+  charEnd   Int
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  book      Book     @relation(fields: [bookId], references: [id])
+
+  @@map("highlights")
+}
+
+model Achievement {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "first_book", "10_books", "100_hours", "streak_7", etc.
+  unlockedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+  @@map("achievements")
+}
+
+model ReadingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  minutes   Int      @default(0)
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  book      Book     @relation(fields: [bookId], references: [id])
+
+  @@map("reading_logs")
+}
+
+model VipEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  addedBy   String?
+  createdAt DateTime @default(now())
+
+  @@map("vip_emails")
 }
