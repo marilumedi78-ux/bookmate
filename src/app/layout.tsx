@@ -32,7 +32,9 @@ export const metadata: Metadata = {
   authors: [{ name: "BookMate Team" }],
   icons: {
     icon: "/logo.svg",
+    apple: "/icons/icon-192.png",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "BookMate - Tu Compañero de Libros",
     description:
@@ -55,6 +57,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        <meta name="theme-color" content="#2A9D8F" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="BookMate" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
@@ -69,6 +78,17 @@ export default function RootLayout({
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

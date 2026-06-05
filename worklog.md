@@ -89,3 +89,24 @@ Stage Summary:
 - BookMate is fully functional and verified via browser testing
 - All tabs work correctly with real API connections
 - No errors, no hydration issues
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Add PWA support for mobile phone testing
+
+Work Log:
+- Created /public/manifest.json with PWA configuration (standalone display, teal theme, portrait orientation)
+- Created /public/sw.js service worker with network-first caching strategy
+- Generated app icons at 192x192 and 512x512 using sharp (SVG logo on petroleum blue background)
+- Updated layout.tsx with PWA meta tags (theme-color, apple-mobile-web-app-capable, apple-touch-icon, manifest link)
+- Added BeforeInstallPromptEvent type declaration in /src/types/pwa.d.ts
+- Added install banner component to page.tsx that shows after 3 seconds on supported browsers
+- Service worker registration script added to layout.tsx
+- Verified app works on mobile viewport (375px) via Agent Browser
+
+Stage Summary:
+- BookMate is now a PWA (Progressive Web App)
+- Users can install it on their phone's home screen
+- App icons generated for both Android and iOS
+- Install banner shows automatically on supported browsers

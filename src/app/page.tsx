@@ -155,6 +155,38 @@ export default function Home() {
   } = useBookMateStore()
 
   const { setTheme } = useTheme()
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  // Capture the beforeinstallprompt event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setInstallPrompt(e as BeforeInstallPromptEvent)
+      // Show banner after a short delay if not dismissed
+      const dismissed = localStorage.getItem('bookmate-install-dismissed')
+      if (!dismissed) {
+        setTimeout(() => setShowInstallBanner(true), 3000)
+      }
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = useCallback(async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false)
+    }
+    setInstallPrompt(null)
+  }, [installPrompt])
+
+  const handleDismissInstall = useCallback(() => {
+    setShowInstallBanner(false)
+    localStorage.setItem('bookmate-install-dismissed', 'true')
+  }, [])
 
   const handleDarkToggle = useCallback(() => {
     const newDark = !isDarkMode
@@ -171,6 +203,31 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      {/* Install Banner */}
+      <AnimatePresence>
+        {showInstallBanner && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-primary/10 border-b px-4 py-3 flex items-center gap-3">
+              <BookMateLogo size={28} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">Instalar BookMate</p>
+                <p className="text-xs text-muted-foreground">Acceso rápido desde tu pantalla de inicio</p>
+              </div>
+              <Button size="sm" onClick={handleInstall} className="shrink-0">
+                Instalar
+              </Button>
+              <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissInstall}>
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* ── HEADER ── */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
         <div className="flex items-center justify-between px-4 h-14">
