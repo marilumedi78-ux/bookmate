@@ -36,6 +36,7 @@ model Book {
   author         String?
   fileName       String
   filePath       String
+  fileHash       String?   // SHA-256 hash for duplicate detection
   coverColor     String    @default("#4DB6AC") // generated cover color
   totalPages     Int       @default(0)
   currentPage    Int       @default(0)

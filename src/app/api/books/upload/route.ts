@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import pdf from 'pdf-parse'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { createHash } from 'crypto'
 
 // Nice cover colors for book cards
 const COVER_COLORS = [
@@ -31,10 +32,16 @@ async function ensureDemoUser() {
   return user
 }
 
+// Compute SHA-256 hash from buffer
+function computeHash(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
+    const force = formData.get('force') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'No se proporcionó ningún archivo' }, { status: 400 })
@@ -47,19 +54,60 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Extract text from PDF
-    const data = await pdf(buffer)
-    const text = data.text || ''
+    // Compute file hash for duplicate detection
+    const fileHash = computeHash(buffer)
 
     // Ensure demo user exists
     const user = await ensureDemoUser()
 
-    // Pick a random cover color
-    const coverColor = COVER_COLORS[Math.floor(Math.random() * COVER_COLORS.length)]
+    // Skip duplicate checks if force=true (user chose "Guardar ambos")
+    if (force !== 'true') {
+      // Check for duplicates by hash (exact same file)
+      const existingByHash = await db.book.findFirst({
+        where: { userId: user.id, fileHash }
+      })
+
+      if (existingByHash) {
+        return NextResponse.json({
+          duplicate: true,
+          matchType: 'hash',
+          existingBook: existingByHash,
+          message: '¡Ya tienes este libro en tu biblioteca!'
+        })
+      }
+    }
+
+    // Extract text from PDF
+    const data = await pdf(buffer)
+    const text = data.text || ''
 
     // Extract metadata
     const title = (data.info?.Title as string) || file.name.replace(/\.pdf$/i, '') || 'Sin título'
     const author = (data.info?.Author as string) || 'Desconocido'
+
+    // Check for duplicates by title + author (different file, same book)
+    // Skip if force=true
+    if (force !== 'true') {
+      const existingByMeta = await db.book.findFirst({
+        where: {
+          userId: user.id,
+          title: { equals: title, mode: 'insensitive' },
+          author: { equals: author, mode: 'insensitive' },
+        }
+      })
+
+      if (existingByMeta) {
+        return NextResponse.json({
+          duplicate: true,
+          matchType: 'metadata',
+          existingBook: existingByMeta,
+          message: `Parece que ya tienes "${title}" en tu biblioteca.`
+        })
+      }
+    }
+
+    // Pick a random cover color
+    const coverColor = COVER_COLORS[Math.floor(Math.random() * COVER_COLORS.length)]
     const totalPages = data.numpages || 0
     const totalChars = text.length
     const estimatedMin = Math.ceil(text.split(/\s+/).filter(Boolean).length / 150)
@@ -71,7 +119,8 @@ export async function POST(request: NextRequest) {
         title,
         author,
         fileName: file.name,
-        filePath: `download/${file.name}`, // stored path reference
+        filePath: `download/${file.name}`,
+        fileHash,
         coverColor,
         totalPages,
         totalChars,
@@ -86,7 +135,7 @@ export async function POST(request: NextRequest) {
     const textFilePath = join(downloadDir, `${book.id}.txt`)
     await writeFile(textFilePath, text, 'utf-8')
 
-    return NextResponse.json({ book })
+    return NextResponse.json({ duplicate: false, book })
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: 'Error al procesar el PDF' }, { status: 500 })

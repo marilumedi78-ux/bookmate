@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import {
@@ -40,9 +40,12 @@ import {
   CheckCircle2,
   Lock,
   Crown,
+  Trash2,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 
-import { useBookMateStore, type BookItem, type TabType } from '@/lib/store'
+import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
@@ -65,7 +68,20 @@ import {
   DialogTitle,
   DialogDescription,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,168 +95,14 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ──────────────────────────────────────────────
-// Demo Books
-// ──────────────────────────────────────────────
-const DEMO_BOOKS: BookItem[] = [
-  {
-    id: 'demo-1',
-    title: 'El Principito',
-    author: 'Antoine de Saint-Exupery',
-    fileName: 'el-principito.pdf',
-    coverColor: 'teal',
-    totalPages: 96,
-    currentPage: 42,
-    totalChars: 45000,
-    readChars: 18900,
-    estimatedMin: 45,
-    isFinished: false,
-    language: 'es',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'demo-2',
-    title: 'Habitos Atomicos',
-    author: 'James Clear',
-    fileName: 'habitos-atomicos.pdf',
-    coverColor: 'amber',
-    totalPages: 320,
-    currentPage: 180,
-    totalChars: 280000,
-    readChars: 157500,
-    estimatedMin: 120,
-    isFinished: false,
-    language: 'es',
-    createdAt: '2026-02-01',
-  },
-  {
-    id: 'demo-3',
-    title: 'El Alquimista',
-    author: 'Paulo Coelho',
-    fileName: 'el-alquimista.pdf',
-    coverColor: 'rose',
-    totalPages: 192,
-    currentPage: 192,
-    totalChars: 120000,
-    readChars: 120000,
-    estimatedMin: 0,
-    isFinished: true,
-    language: 'es',
-    createdAt: '2025-12-20',
-  },
-  {
-    id: 'demo-4',
-    title: 'Pensar Rapido, Pensar Despacio',
-    author: 'Daniel Kahneman',
-    fileName: 'pensar-rapido.pdf',
-    coverColor: 'violet',
-    totalPages: 416,
-    currentPage: 80,
-    totalChars: 380000,
-    readChars: 73000,
-    estimatedMin: 200,
-    isFinished: false,
-    language: 'es',
-    createdAt: '2026-03-01',
-  },
-  {
-    id: 'demo-5',
-    title: 'El Poder del Ahora',
-    author: 'Eckhart Tolle',
-    fileName: 'poder-del-ahora.pdf',
-    coverColor: 'emerald',
-    totalPages: 236,
-    currentPage: 0,
-    totalChars: 195000,
-    readChars: 0,
-    estimatedMin: 195,
-    isFinished: false,
-    language: 'es',
-    createdAt: '2026-03-03',
-  },
-]
-
-// ──────────────────────────────────────────────
-// Cover Color Map
-// ──────────────────────────────────────────────
-const COVER_GRADIENTS: Record<string, string> = {
-  teal: 'from-teal-400 to-teal-700',
-  amber: 'from-amber-400 to-amber-700',
-  rose: 'from-rose-400 to-rose-700',
-  violet: 'from-violet-400 to-violet-700',
-  emerald: 'from-emerald-400 to-emerald-700',
-  blue: 'from-blue-400 to-blue-700',
-  orange: 'from-orange-400 to-orange-700',
-  cyan: 'from-cyan-400 to-cyan-700',
-}
-
-// ──────────────────────────────────────────────
-// Demo text for reader
-// ──────────────────────────────────────────────
-const DEMO_TEXT = `Capitulo 1
-
-Cuando el avion se averio, el mecánico del aeródromo murmuro que era imposible encontrar un mecánico o los repuestos necesarios en pleno Sahara. Tenia que conformarse con la situacion y tratar de sobrevivir.
-
-Fue asi como, a la mañana siguiente, me desperto una voz extraña. Venia de un hombrecito que me miraba con los ojos muy abiertos.
-
-—Por favor... dibujame un cordero!
-
-—Como?
-
-—Dibujame un cordero...
-
-Habia aterrizado en el desierto del Sahara, a mil millas de cualquier habitacion humana. Y sin embargo, aquel hombrecito no parecia ni perdido, ni medio muerto de sed, de hambre o de miedo. No tenia el aspecto de un niño perdido en el desierto.
-
-Cuando por fin pude hablar, le dije:
-
-—Pero... que haces tu aqui?
-
-Y el repitio, como si se tratara de algo muy serio:
-
-—Por favor... dibujame un cordero.
-
-La historia del principito es una de las mas bellas jamas escritas. Narra el encuentro de un aviador perdido en el desierto con un pequeño principe venido de un asteroide.
-
-El principito le cuenta al aviador sobre su planeta, sobre su flor, sobre sus viajes por diferentes asteroides donde encontro personajes singulares: un rey, un vanidoso, un borracho, un hombre de negocios, un farolero y un geografo.
-
-Cada uno de estos personajes representa un aspecto de la naturaleza humana que el autor critica con delicadeza y sabiduria. La soledad, la ambicion, la vanidad, el conformismo.
-
-Es un libro que, aunque parece escrito para niños, contiene profundos mensajes para los adultos. Nos recuerda lo esencial es invisible a los ojos.`
-
-// ──────────────────────────────────────────────
-// Weekly data for stats
-// ──────────────────────────────────────────────
-const WEEKLY_DATA = [
-  { day: 'Lun', minutes: 45 },
-  { day: 'Mar', minutes: 30 },
-  { day: 'Mie', minutes: 60 },
-  { day: 'Jue', minutes: 15 },
-  { day: 'Vie', minutes: 50 },
-  { day: 'Sab', minutes: 75 },
-  { day: 'Dom', minutes: 40 },
-]
-
-// ──────────────────────────────────────────────
-// Achievements
-// ──────────────────────────────────────────────
-const ACHIEVEMENTS = [
-  { id: 'first-book', name: 'Primer Libro', icon: BookMarked, unlocked: true },
-  { id: 'ten-books', name: '10 Libros', icon: BookOpen, unlocked: false },
-  { id: 'hundred-hours', name: '100 Horas', icon: Clock, unlocked: false },
-  { id: 'streak-7', name: 'Racha 7 dias', icon: FlameIcon, unlocked: true },
-  { id: 'streak-30', name: 'Racha 30 dias', icon: Trophy, unlocked: false },
-  { id: 'nocturnal', name: 'Noctambulo', icon: Moon, unlocked: true },
-  { id: 'speedster', name: 'Velocista', icon: Zap, unlocked: false },
-  { id: 'explorer', name: 'Explorador', icon: Globe, unlocked: false },
-]
-
-// ──────────────────────────────────────────────
-// Ambient sounds config
+// Constants
 // ──────────────────────────────────────────────
 const AMBIENT_SOUNDS = [
   { id: 'rain', name: 'Lluvia', icon: CloudRain },
-  { id: 'cafe', name: 'Cafe', icon: Coffee },
+  { id: 'cafe', name: 'Café', icon: Coffee },
   { id: 'fire', name: 'Fogata', icon: Flame },
   { id: 'waves', name: 'Olas', icon: Waves },
   { id: 'forest', name: 'Bosque', icon: TreePine },
@@ -250,11 +112,36 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const SLEEP_OPTIONS = [15, 30, 45, 60]
 
 const EXPLICA_OPTIONS = [
-  { id: 'simple', label: 'Explicamelo simple', icon: Eye },
-  { id: 'kids', label: 'Como si tuviera 10 anos', icon: Star },
-  { id: 'example', label: 'Dame un ejemplo', icon: Layers },
-  { id: 'author', label: 'Que quiere decir el autor?', icon: Sparkles },
+  { id: 'simple', label: 'Explícamelo simple', icon: Eye, mode: 'simple' },
+  { id: 'kids', label: 'Como si tuviera 10 años', icon: Star, mode: 'kid10' },
+  { id: 'example', label: 'Dame un ejemplo', icon: Layers, mode: 'example' },
+  { id: 'author', label: '¿Qué quiere decir el autor?', icon: Sparkles, mode: 'author_intent' },
 ]
+
+const ACHIEVEMENT_ICONS: Record<string, typeof BookOpen> = {
+  'first-book': BookMarked,
+  'ten-books': BookOpen,
+  'hundred-hours': Clock,
+  'streak-7': FlameIcon,
+  'streak-30': Trophy,
+  'nocturnal': Moon,
+  'speedster': Zap,
+  'explorer': Globe,
+  'finisher': CheckCircle2,
+  'bookworm': BookOpen,
+}
+
+// ──────────────────────────────────────────────
+// Helper: darken a hex color by 30%
+// ──────────────────────────────────────────────
+function darkenHex(hex: string, amount = 0.3): string {
+  if (!hex || !hex.startsWith('#')) return '#1a5c54'
+  const num = parseInt(hex.slice(1), 16)
+  const r = Math.max(0, Math.round(((num >> 16) & 0xff) * (1 - amount)))
+  const g = Math.max(0, Math.round(((num >> 8) & 0xff) * (1 - amount)))
+  const b = Math.max(0, Math.round((num & 0xff) * (1 - amount)))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
 
 // ──────────────────────────────────────────────
 // Main Page Component
@@ -267,7 +154,7 @@ export default function Home() {
     setIsDarkMode,
   } = useBookMateStore()
 
-  const { setTheme, resolvedTheme } = useTheme()
+  const { setTheme } = useTheme()
 
   const handleDarkToggle = useCallback(() => {
     const newDark = !isDarkMode
@@ -329,7 +216,7 @@ export default function Home() {
 
       {/* ── FOOTER / TAB NAV ── */}
       <footer className="sticky bottom-0 z-50 bg-background/80 backdrop-blur-md border-t mt-auto">
-        <nav className="flex" aria-label="Navegacion principal">
+        <nav className="flex" aria-label="Navegación principal">
           {tabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -360,11 +247,58 @@ export default function Home() {
 // LIBRARY TAB
 // ──────────────────────────────────────────────
 function LibraryTab() {
-  const { setCurrentBook, setBookText, setActiveTab, currentBook } = useBookMateStore()
+  const {
+    books,
+    setBooks,
+    addBook,
+    removeBook,
+    setCurrentBook,
+    setBookText,
+    setActiveTab,
+    isUploading,
+    setIsUploading,
+    duplicateInfo,
+    setDuplicateInfo,
+  } = useBookMateStore()
+
   const [searchQuery, setSearchQuery] = useState('')
-  const [books] = useState<BookItem[]>(DEMO_BOOKS)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [loadingBooks, setLoadingBooks] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<BookItem | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch books on mount
+  useEffect(() => {
+    let cancelled = false
+    const fetchBooks = async () => {
+      setLoadingBooks(true)
+      try {
+        const res = await fetch('/api/books')
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setBooks(data.books || [])
+        }
+      } catch {
+        // silently fail
+      } finally {
+        if (!cancelled) setLoadingBooks(false)
+      }
+    }
+    fetchBooks()
+    return () => { cancelled = true }
+  }, [setBooks])
+
+  const fetchBooks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/books')
+      if (res.ok) {
+        const data = await res.json()
+        setBooks(data.books || [])
+      }
+    } catch {
+      // silently fail
+    }
+  }, [setBooks])
 
   const filteredBooks = books.filter(
     (b) =>
@@ -373,40 +307,133 @@ function LibraryTab() {
   )
 
   const handleOpenBook = useCallback(
-    (book: BookItem) => {
+    async (book: BookItem) => {
       setCurrentBook(book)
-      setBookText(DEMO_TEXT)
+      try {
+        const res = await fetch(`/api/books/${book.id}/text`)
+        if (res.ok) {
+          const data = await res.json()
+          setBookText(data.text || '')
+        } else {
+          setBookText('')
+        }
+      } catch {
+        setBookText('')
+      }
       setActiveTab('reader')
     },
     [setCurrentBook, setBookText, setActiveTab]
   )
 
   const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
-      if (file) {
-        const newBook: BookItem = {
-          id: `upload-${Date.now()}`,
-          title: file.name.replace('.pdf', ''),
-          author: 'Autor desconocido',
-          fileName: file.name,
-          coverColor: 'cyan',
-          totalPages: 0,
-          currentPage: 0,
-          totalChars: 0,
-          readChars: 0,
-          estimatedMin: 0,
-          isFinished: false,
-          language: 'es',
-          createdAt: new Date().toISOString().split('T')[0],
+      if (!file) return
+
+      setIsUploading(true)
+      setDuplicateInfo(null)
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const res = await fetch('/api/books/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+
+          if (data.duplicate) {
+            // Show duplicate dialog
+            setDuplicateInfo({
+              duplicate: true,
+              matchType: data.matchType,
+              existingBook: data.existingBook,
+              message: data.message,
+            })
+          } else {
+            // New book created successfully
+            addBook(data.book)
+            setUploadOpen(false)
+          }
         }
-        setCurrentBook(newBook)
-        setBookText(DEMO_TEXT)
-        setUploadOpen(false)
-        setActiveTab('reader')
+      } catch {
+        // Error handled silently
+      } finally {
+        setIsUploading(false)
+        // Reset file input
+        if (fileInputRef.current) fileInputRef.current.value = ''
       }
     },
-    [setCurrentBook, setBookText, setActiveTab]
+    [setIsUploading, setDuplicateInfo, addBook]
+  )
+
+  const handleDuplicateReplace = useCallback(async () => {
+    if (!duplicateInfo?.existingBook) return
+    // Delete existing and re-upload
+    try {
+      await fetch(`/api/books/${duplicateInfo.existingBook.id}`, { method: 'DELETE' })
+      removeBook(duplicateInfo.existingBook.id)
+    } catch {
+      // continue
+    }
+    setDuplicateInfo(null)
+    setUploadOpen(false)
+    // Re-trigger file selection
+    setTimeout(() => {
+      fileInputRef.current?.click()
+    }, 300)
+  }, [duplicateInfo, removeBook, setDuplicateInfo])
+
+  const handleDuplicateKeepBoth = useCallback(async () => {
+    // Re-upload with force flag
+    const fileInput = fileInputRef.current
+    if (!fileInput?.files?.[0]) {
+      setDuplicateInfo(null)
+      return
+    }
+
+    setIsUploading(true)
+    const formData = new FormData()
+    formData.append('file', fileInput.files[0])
+    formData.append('force', 'true')
+
+    try {
+      const res = await fetch('/api/books/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.book) {
+          addBook(data.book)
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsUploading(false)
+      setDuplicateInfo(null)
+      setUploadOpen(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [setIsUploading, setDuplicateInfo, addBook])
+
+  const handleDeleteBook = useCallback(
+    async (book: BookItem) => {
+      try {
+        const res = await fetch(`/api/books/${book.id}`, { method: 'DELETE' })
+        if (res.ok) {
+          removeBook(book.id)
+        }
+      } catch {
+        // silently fail
+      }
+      setDeleteTarget(null)
+    },
+    [removeBook]
   )
 
   return (
@@ -428,25 +455,49 @@ function LibraryTab() {
         />
       </div>
 
+      {/* Loading state */}
+      {loadingBooks && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden py-0 gap-3">
+              <Skeleton className="h-36 w-full" />
+              <div className="px-3 pb-3 space-y-2">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-1.5 w-full" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
-      {filteredBooks.length === 0 && (
+      {!loadingBooks && filteredBooks.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <BookOpen className="size-16 text-muted-foreground/40 mb-4" />
           <p className="text-muted-foreground text-lg font-medium">Sube tu primer libro para empezar</p>
           <p className="text-muted-foreground/70 text-sm mt-1">
-            Toca el boton + para agregar un PDF
+            Toca el botón + para agregar un PDF
           </p>
         </div>
       )}
 
       {/* Book Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredBooks.map((book, i) => (
-          <BookCard key={book.id} book={book} index={i} onOpen={handleOpenBook} />
-        ))}
-      </div>
+      {!loadingBooks && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredBooks.map((book, i) => (
+            <BookCard
+              key={book.id}
+              book={book}
+              index={i}
+              onOpen={handleOpenBook}
+              onDelete={setDeleteTarget}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* FAB */}
+      {/* Upload FAB */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogTrigger asChild>
           <Button
@@ -468,10 +519,19 @@ function LibraryTab() {
             className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
             onClick={() => fileInputRef.current?.click()}
           >
-            <BookOpen className="size-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Toca para seleccionar un archivo PDF
-            </p>
+            {isUploading ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="size-10 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Subiendo libro...</p>
+              </div>
+            ) : (
+              <>
+                <BookOpen className="size-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Toca para seleccionar un archivo PDF
+                </p>
+              </>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -482,6 +542,53 @@ function LibraryTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Duplicate Alert */}
+      <AlertDialog open={!!duplicateInfo} onOpenChange={(open) => { if (!open) setDuplicateInfo(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-accent" />
+              ¡Ya tienes este libro!
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {duplicateInfo?.message || 'Se encontró un libro duplicado en tu biblioteca.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => { setDuplicateInfo(null); setUploadOpen(false) }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDuplicateKeepBoth} className="bg-secondary text-secondary-foreground hover:bg-secondary/80">
+              Guardar ambos
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDuplicateReplace} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar libro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar &ldquo;{deleteTarget?.title}&rdquo;? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && handleDeleteBook(deleteTarget)}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -493,13 +600,26 @@ function BookCard({
   book,
   index,
   onOpen,
+  onDelete,
 }: {
   book: BookItem
   index: number
   onOpen: (book: BookItem) => void
+  onDelete: (book: BookItem) => void
 }) {
   const progress = book.totalChars > 0 ? Math.round((book.readChars / book.totalChars) * 100) : 0
-  const gradientClass = COVER_GRADIENTS[book.coverColor] || COVER_GRADIENTS.teal
+
+  // Use hex coverColor directly with inline style gradient
+  const coverBg = book.coverColor || '#2A9D8F'
+  const coverDark = darkenHex(coverBg, 0.3)
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      onDelete(book)
+    },
+    [book, onDelete]
+  )
 
   return (
     <motion.div
@@ -510,12 +630,16 @@ function BookCard({
       whileTap={{ scale: 0.98 }}
     >
       <Card
-        className="cursor-pointer overflow-hidden py-0 gap-3 transition-shadow hover:shadow-md"
+        className="cursor-pointer overflow-hidden py-0 gap-3 transition-shadow hover:shadow-md group relative"
         onClick={() => onOpen(book)}
+        onContextMenu={handleContextMenu}
       >
         {/* Cover */}
         <div
-          className={`bg-gradient-to-br ${gradientClass} h-36 flex items-end p-3 relative`}
+          className="h-36 flex items-end p-3 relative"
+          style={{
+            background: `linear-gradient(135deg, ${coverBg} 0%, ${coverDark} 100%)`,
+          }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           <p className="text-white font-semibold text-sm leading-tight line-clamp-2 relative z-10 drop-shadow-sm">
@@ -526,6 +650,19 @@ function BookCard({
               <Check className="size-3" />
             </Badge>
           )}
+          {/* Delete button on hover */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 left-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity z-10 text-white/80 hover:text-white hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(book)
+            }}
+            aria-label="Eliminar libro"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
         </div>
 
         <div className="px-3 pb-3 space-y-2">
@@ -533,13 +670,13 @@ function BookCard({
           <Progress value={progress} className="h-1.5" />
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <span>{progress}%</span>
-            {book.estimatedMin > 0 ? (
+            {book.isFinished ? (
+              <span className="text-green-600 font-medium">Completado</span>
+            ) : book.estimatedMin > 0 ? (
               <span className="flex items-center gap-0.5">
                 <Clock className="size-3" />
-                {book.estimatedMin} min
+                ~{book.estimatedMin} min
               </span>
-            ) : book.isFinished ? (
-              <span className="text-green-600 font-medium">Completado</span>
             ) : null}
           </div>
         </div>
@@ -573,12 +710,74 @@ function ReaderTab() {
     explicaText,
     setExplicaText,
     highlights,
+    setHighlights,
     addHighlight,
+    isExplaining,
+    setIsExplaining,
+    isLoadingBook,
+    setIsLoadingBook,
   } = store
 
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
   const [selectedText, setSelectedText] = useState('')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Fetch highlights when book changes
+  useEffect(() => {
+    if (!currentBook) return
+    let cancelled = false
+    const fetchHighlights = async () => {
+      try {
+        const res = await fetch(`/api/highlights?bookId=${currentBook.id}`)
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setHighlights(data.highlights || [])
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    fetchHighlights()
+    return () => { cancelled = true }
+  }, [currentBook, setHighlights])
+
+  // Debounced save progress
+  const saveProgress = useCallback(
+    (charIdx: number) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(async () => {
+        if (!currentBook) return
+        try {
+          const readChars = Math.max(charIdx, currentBook.readChars)
+          const isFinished = readChars >= currentBook.totalChars && currentBook.totalChars > 0
+          await fetch(`/api/books/${currentBook.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              currentCharIdx: charIdx,
+              readChars,
+              isFinished,
+            }),
+          })
+        } catch {
+          // silently fail
+        }
+      }, 1500)
+    },
+    [currentBook]
+  )
+
+  // Save progress when charIndex changes
+  useEffect(() => {
+    if (currentBook && currentCharIndex > 0) {
+      saveProgress(currentCharIndex)
+    }
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [currentCharIndex, currentBook, saveProgress])
+
+  // Empty state
   if (!currentBook) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-4">
@@ -587,7 +786,7 @@ function ReaderTab() {
           Selecciona un libro de tu biblioteca
         </p>
         <p className="text-muted-foreground/70 text-sm mt-1">
-          Ve a la pestana Biblioteca y elige un libro para empezar a leer
+          Ve a la pestaña Biblioteca y elige un libro para empezar a leer
         </p>
       </div>
     )
@@ -601,13 +800,15 @@ function ReaderTab() {
   }
 
   const handleSkipForward = () => {
-    const skip = Math.floor(totalChars * (10 / 120))
-    setCurrentCharIndex(Math.min(currentCharIndex + skip, totalChars))
+    const skip = Math.max(Math.floor(totalChars * (10 / 120)), 200)
+    const newIdx = Math.min(currentCharIndex + skip, totalChars)
+    setCurrentCharIndex(newIdx)
   }
 
   const handleSkipBack = () => {
-    const skip = Math.floor(totalChars * (10 / 120))
-    setCurrentCharIndex(Math.max(currentCharIndex - skip, 0))
+    const skip = Math.max(Math.floor(totalChars * (10 / 120)), 200)
+    const newIdx = Math.max(currentCharIndex - skip, 0)
+    setCurrentCharIndex(newIdx)
   }
 
   const handleProgressChange = (value: number[]) => {
@@ -622,35 +823,82 @@ function ReaderTab() {
     }
   }
 
-  const handleHighlight = () => {
-    if (selectedText && currentBook) {
+  const handleHighlight = async () => {
+    if (!selectedText || !currentBook) return
+
+    const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
+    const actualStart = charStart >= 0 ? charStart : 0
+
+    try {
+      const res = await fetch('/api/highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookId: currentBook.id,
+          text: selectedText,
+          color: 'yellow',
+          charStart: actualStart,
+          charEnd: actualStart + selectedText.length,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        addHighlight(data.highlight)
+      }
+    } catch {
+      // Fallback to local
       addHighlight({
         id: `hl-${Date.now()}`,
         bookId: currentBook.id,
         text: selectedText,
         note: '',
         color: 'yellow',
-        charStart: bookText.indexOf(selectedText),
-        charEnd: bookText.indexOf(selectedText) + selectedText.length,
+        charStart: actualStart,
+        charEnd: actualStart + selectedText.length,
       })
-      setSelectedText('')
     }
+    setSelectedText('')
   }
 
   const handleExplica = () => {
     if (selectedText) {
       setExplicaText(selectedText)
     }
+    setExplicaResult(null)
     setShowExplica(true)
   }
 
-  const handleExplicaOption = (_optionId: string) => {
-    setExplicaResult(
-      'Esta es una explicacion generada por la IA de BookMate. En una version completa, aqui apareceria la explicacion detallada del texto seleccionado usando el modelo de lenguaje.'
-    )
+  const handleExplicaOption = async (option: typeof EXPLICA_OPTIONS[number]) => {
+    const textToExplain = explicaText || selectedText
+    if (!textToExplain) return
+
+    setIsExplaining(true)
+    setExplicaResult(null)
+
+    try {
+      const res = await fetch('/api/explica', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToExplain,
+          mode: option.mode,
+          bookTitle: currentBook?.title,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setExplicaResult(data.explanation || 'No se pudo generar una explicación.')
+      } else {
+        setExplicaResult('Error al obtener la explicación. Inténtalo de nuevo.')
+      }
+    } catch {
+      setExplicaResult('Error de conexión. Inténtalo de nuevo.')
+    } finally {
+      setIsExplaining(false)
+    }
   }
 
-  // Split text into lines for rendering, highlight around currentCharIndex
+  // Split text into sentences for rendering with highlighting
   const renderText = () => {
     if (!bookText) return null
 
@@ -688,12 +936,21 @@ function ReaderTab() {
 
       {/* Text area */}
       <ScrollArea className="flex-1 px-4 py-4">
-        <div
-          className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text"
-          onMouseUp={handleTextSelect}
-        >
-          {renderText()}
-        </div>
+        {isLoadingBook ? (
+          <div className="space-y-3 max-w-2xl mx-auto">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-4 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div
+            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text"
+            onMouseUp={handleTextSelect}
+            onTouchEnd={handleTextSelect}
+          >
+            {renderText()}
+          </div>
+        )}
       </ScrollArea>
 
       {/* Selection actions */}
@@ -854,6 +1111,14 @@ function ReaderTab() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setSleepTimer(null)}>
                   Desactivar
+                  {sleepTimer === null && <Check className="size-3.5 ml-auto" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSleepTimer(-1)}
+                  className={sleepTimer === -1 ? 'bg-primary/10' : ''}
+                >
+                  Fin de capítulo
+                  {sleepTimer === -1 && <Check className="size-3.5 ml-auto" />}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -889,6 +1154,7 @@ function ReaderTab() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setAmbientSound(null)}>
                   Silencio
+                  {ambientSound === null && <Check className="size-3.5 ml-auto" />}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -898,7 +1164,7 @@ function ReaderTab() {
               variant="ghost"
               size="icon"
               className="size-8"
-              onClick={() => setShowExplica(true)}
+              onClick={() => { setExplicaResult(null); setShowExplica(true) }}
             >
               <Sparkles className="size-4" />
             </Button>
@@ -908,15 +1174,15 @@ function ReaderTab() {
 
       {/* Explica Sheet */}
       <Sheet open={showExplica} onOpenChange={setShowExplica}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle>BookMate Explica</SheetTitle>
             <SheetDescription>
-              Selecciona una opcion para entender mejor el texto
+              Selecciona una opción para entender mejor el texto
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <div className="flex-1 px-4 py-4 space-y-4">
             {/* Selected text */}
             {(explicaText || selectedText) && (
               <div className="bg-muted rounded-lg p-3">
@@ -936,7 +1202,8 @@ function ReaderTab() {
                     key={option.id}
                     variant="outline"
                     className="w-full justify-start text-left"
-                    onClick={() => handleExplicaOption(option.id)}
+                    onClick={() => handleExplicaOption(option)}
+                    disabled={isExplaining}
                   >
                     <OptionIcon className="size-4 mr-2 shrink-0" />
                     {option.label}
@@ -946,18 +1213,22 @@ function ReaderTab() {
               })}
             </div>
 
+            {/* Loading */}
+            {isExplaining && (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <span className="ml-2 text-sm text-muted-foreground">Generando explicación...</span>
+              </div>
+            )}
+
             {/* Result */}
-            {explicaResult && (
+            {explicaResult && !isExplaining && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3"
               >
-                <p className="text-sm text-foreground">{explicaResult}</p>
-                <Button size="sm" variant="secondary" className="w-full">
-                  <Volume2 className="size-3.5 mr-1.5" />
-                  Escuchar explicacion
-                </Button>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{explicaResult}</p>
               </motion.div>
             )}
           </div>
@@ -970,16 +1241,99 @@ function ReaderTab() {
 // ──────────────────────────────────────────────
 // STATS TAB
 // ──────────────────────────────────────────────
+interface StatsData {
+  totalBooks: number
+  finishedBooks: number
+  totalHours: number
+  totalReadMin: number
+  streakDays: number
+  bestStreak: number
+  lastReadDate: string | null
+  weeklyData: { day: string; minutes: number; date: string }[]
+  plan: string
+  isVip: boolean
+}
+
+interface AchievementData {
+  id: string
+  userId: string
+  type: string
+  unlockedAt: string
+}
+
 function StatsTab() {
-  const { streakDays } = useBookMateStore()
-  const maxMinutes = Math.max(...WEEKLY_DATA.map((d) => d.minutes))
+  const { streakDays, setIsVip, setUserPlan } = useBookMateStore()
+  const [stats, setStats] = useState<StatsData | null>(null)
+  const [achievements, setAchievements] = useState<AchievementData[]>([])
+  const [newAchievements, setNewAchievements] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchStats = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/stats')
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setStats(data.stats || null)
+          setAchievements(data.achievements || [])
+          setNewAchievements(data.newAchievements || [])
+          if (data.stats?.isVip) setIsVip(true)
+          if (data.stats?.plan) setUserPlan(data.stats.plan as 'free' | 'plus' | 'pro')
+        }
+      } catch {
+        // silently fail
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchStats()
+    return () => { cancelled = true }
+  }, [setIsVip, setUserPlan])
+
+  const weeklyData = stats?.weeklyData || []
+  const maxMinutes = weeklyData.length > 0
+    ? Math.max(...weeklyData.map((d) => d.minutes), 1)
+    : 1
+
+  // All possible achievement types
+  const ALL_ACHIEVEMENT_TYPES = [
+    { type: 'first-book', name: 'Primer Libro' },
+    { type: 'ten-books', name: '10 Libros' },
+    { type: 'hundred-hours', name: '100 Horas' },
+    { type: 'streak-7', name: 'Racha 7 días' },
+    { type: 'streak-30', name: 'Racha 30 días' },
+    { type: 'nocturnal', name: 'Noctámbulo' },
+    { type: 'speedster', name: 'Velocista' },
+    { type: 'explorer', name: 'Explorador' },
+    { type: 'finisher', name: 'Finalizador' },
+    { type: 'bookworm', name: 'Ratón de biblioteca' },
+  ]
+
+  const unlockedTypes = new Set(achievements.map((a) => a.type))
 
   const statsCards = [
-    { label: 'Total Libros', value: '5', icon: BookOpen },
-    { label: 'Total Horas', value: '23.5', icon: Clock },
-    { label: 'Racha Actual', value: `${streakDays || 7} dias`, icon: FlameIcon },
-    { label: 'Mejor Racha', value: '14 dias', icon: Trophy },
+    { label: 'Total Libros', value: stats?.totalBooks ?? 0, icon: BookOpen },
+    { label: 'Total Horas', value: stats?.totalHours ? Number(stats.totalHours).toFixed(1) : '0', icon: Clock },
+    { label: 'Racha Actual', value: `${stats?.streakDays ?? streakDays} días`, icon: FlameIcon },
+    { label: 'Mejor Racha', value: `${stats?.bestStreak ?? 0} días`, icon: Trophy },
   ]
+
+  if (loading) {
+    return (
+      <div className="px-4 pt-6 space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-48 w-full" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 pt-6 space-y-6">
@@ -988,6 +1342,21 @@ function StatsTab() {
         <h1 className="text-2xl font-bold text-foreground">Tu Actividad de Lectura</h1>
       </div>
 
+      {/* New achievements banner */}
+      {newAchievements.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-accent/20 border border-accent/30 rounded-lg p-3 flex items-center gap-3"
+        >
+          <Trophy className="size-5 text-accent shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">¡Nuevo logro desbloqueado!</p>
+            <p className="text-xs text-muted-foreground">{newAchievements.join(', ')}</p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Streak */}
       <Card className="py-4">
         <CardContent className="flex items-center gap-4">
@@ -995,7 +1364,7 @@ function StatsTab() {
             <FlameIcon className="size-7 text-primary" />
           </div>
           <div>
-            <p className="text-3xl font-bold text-foreground">{streakDays || 7} dias</p>
+            <p className="text-3xl font-bold text-foreground">{stats?.streakDays ?? streakDays} días</p>
             <p className="text-sm text-muted-foreground">Racha actual de lectura</p>
           </div>
         </CardContent>
@@ -1005,32 +1374,38 @@ function StatsTab() {
       <Card className="py-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Lectura semanal</CardTitle>
-          <CardDescription>Minutos leidos por dia</CardDescription>
+          <CardDescription>Minutos leídos por día</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-2 h-36">
-            {WEEKLY_DATA.map((day) => {
-              const height = maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0
-              return (
-                <div key={day.day} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[11px] text-muted-foreground">
-                    {day.minutes}
-                  </span>
-                  <div className="w-full flex items-end" style={{ height: '100px' }}>
-                    <motion.div
-                      className="w-full bg-primary/80 rounded-t-sm min-h-[4px]"
-                      initial={{ height: 0 }}
-                      animate={{ height: `${height}%` }}
-                      transition={{ duration: 0.5, ease: 'easeOut' }}
-                    />
+          {weeklyData.length > 0 ? (
+            <div className="flex items-end gap-2 h-36">
+              {weeklyData.map((day, idx) => {
+                const height = maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0
+                return (
+                  <div key={day.day + idx} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      {day.minutes}
+                    </span>
+                    <div className="w-full flex items-end" style={{ height: '100px' }}>
+                      <motion.div
+                        className="w-full bg-primary/80 rounded-t-sm min-h-[4px]"
+                        initial={{ height: 0 }}
+                        animate={{ height: `${height}%` }}
+                        transition={{ duration: 0.5, ease: 'easeOut', delay: idx * 0.05 }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {day.day}
+                    </span>
                   </div>
-                  <span className="text-[11px] text-muted-foreground font-medium">
-                    {day.day}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-36 text-muted-foreground text-sm">
+              Sin datos de lectura esta semana
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1058,11 +1433,11 @@ function StatsTab() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-3">
-            {ACHIEVEMENTS.map((achievement) => {
-              const AchievementIcon = achievement.icon
-              const isUnlocked = achievement.unlocked
+            {ALL_ACHIEVEMENT_TYPES.map((achievement) => {
+              const isUnlocked = unlockedTypes.has(achievement.type)
+              const AchievementIcon = ACHIEVEMENT_ICONS[achievement.type] || Star
               return (
-                <Tooltip key={achievement.id}>
+                <Tooltip key={achievement.type}>
                   <TooltipTrigger asChild>
                     <div
                       className={`flex flex-col items-center gap-1.5 p-2 rounded-lg transition-colors ${
@@ -1110,155 +1485,197 @@ function StatsTab() {
 // ──────────────────────────────────────────────
 // PRICING TAB
 // ──────────────────────────────────────────────
+const PLANS = [
+  {
+    id: 'free' as const,
+    name: 'Gratis',
+    price: 0,
+    annualPrice: 0,
+    description: 'Para empezar a leer',
+    features: [
+      { text: '3 libros máximo', included: true },
+      { text: 'TTS básico', included: true },
+      { text: 'Seguimiento de progreso', included: true },
+      { text: '1 sonido ambiental', included: true },
+      { text: 'Explica limitado (3/día)', included: true },
+      { text: 'Sin anuncios', included: false },
+      { text: 'Libros ilimitados', included: false },
+      { text: 'Todos los sonidos ambientales', included: false },
+    ],
+    icon: BookOpen,
+  },
+  {
+    id: 'plus' as const,
+    name: 'Plus',
+    price: 12.99,
+    annualPrice: 129.99,
+    description: 'Para lectores regulares',
+    features: [
+      { text: 'Libros ilimitados', included: true },
+      { text: 'TTS de alta calidad', included: true },
+      { text: 'Todos los sonidos ambientales', included: true },
+      { text: 'Explica ilimitado', included: true },
+      { text: 'Sin anuncios', included: true },
+      { text: 'Resúmenes de capítulos', included: true },
+      { text: 'Estadísticas avanzadas', included: false },
+      { text: 'Soporte prioritario', included: false },
+    ],
+    icon: Star,
+    popular: true,
+  },
+  {
+    id: 'pro' as const,
+    name: 'Pro',
+    price: 17.99,
+    annualPrice: 179.99,
+    description: 'Para lectores apasionados',
+    features: [
+      { text: 'Todo de Plus', included: true },
+      { text: 'Estadísticas avanzadas', included: true },
+      { text: 'Soporte prioritario', included: true },
+      { text: 'IA personalizada', included: true },
+      { text: 'Exportar notas y resaltados', included: true },
+      { text: 'Clubes de lectura', included: true },
+      { text: 'Acceso anticipado', included: true },
+      { text: 'Badge exclusivo', included: true },
+    ],
+    icon: Crown,
+  },
+]
+
 function PricingTab() {
   const { userPlan, setUserPlan, setIsVip } = useBookMateStore()
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
 
-  const plans = [
-    {
-      id: 'free' as const,
-      name: 'Gratis',
-      price: '$0',
-      period: '/mes',
-      description: 'Para empezar a explorar',
-      features: [
-        'Google TTS mejorado',
-        '5 subrayados por libro',
-        'Racha de lectura',
-        'Estadisticas basicas',
-      ],
-      cta: 'Plan actual',
-      popular: false,
-      icon: BookOpen,
-    },
-    {
-      id: 'plus' as const,
-      name: 'Plus',
-      price: '$12.99',
-      period: '/mes',
-      annualPrice: '$99.99/ano',
-      description: 'Para lectores dedicados',
-      features: [
-        '15 hrs IA al mes',
-        'Sonidos ambientales',
-        'Temas personalizados',
-        'Logros y metas',
-        '10 "Explica" al mes',
-        'Modo dormir',
-        'Subrayados ilimitados',
-      ],
-      cta: 'Elegir Plus',
-      popular: true,
-      icon: Crown,
-    },
-    {
-      id: 'pro' as const,
-      name: 'Pro',
-      price: '$17.99',
-      period: '/mes',
-      annualPrice: '$129.99/ano',
-      description: 'Para los mas exigentes',
-      features: [
-        '25 hrs IA al mes',
-        '"Explica" ilimitado + voz',
-        'Resumen con IA',
-        'Analisis de sentimiento',
-        'OCR escaner 1 libro/mes',
-        '"Tu Ano en Libros"',
-      ],
-      cta: 'Elegir Pro',
-      popular: false,
-      icon: Gem,
-    },
-  ]
+  const handleSelectPlan = (planId: 'free' | 'plus' | 'pro') => {
+    setUserPlan(planId)
+    setIsVip(planId !== 'free')
+  }
 
   return (
     <div className="px-4 pt-6 space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-foreground">Elige tu Plan</h1>
+        <h1 className="text-2xl font-bold text-foreground">Elige tu plan</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Desbloquea todo el potencial de BookMate
         </p>
       </div>
 
-      {/* Annual savings callout */}
-      <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-3 text-center">
-        <p className="text-sm font-medium text-primary">
-          Ahorra hasta 36% con la suscripcion anual
-        </p>
+      {/* Billing toggle */}
+      <div className="flex items-center justify-center gap-3">
+        <Button
+          variant={billing === 'monthly' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setBilling('monthly')}
+        >
+          Mensual
+        </Button>
+        <Button
+          variant={billing === 'annual' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setBilling('annual')}
+        >
+          Anual
+          <Badge className="ml-1.5 bg-accent text-accent-foreground border-0 text-[10px]">
+            -17%
+          </Badge>
+        </Button>
       </div>
 
       {/* Plan cards */}
-      <div className="space-y-4 md:grid md:grid-cols-3 md:gap-4 md:space-y-0">
-        {plans.map((plan) => {
+      <div className="space-y-4 max-w-md mx-auto">
+        {PLANS.map((plan, i) => {
           const PlanIcon = plan.icon
           const isCurrent = userPlan === plan.id
+          const price = billing === 'annual' ? plan.annualPrice : plan.price
+          const monthlyEquivalent = plan.annualPrice > 0 ? (plan.annualPrice / 12).toFixed(2) : '0'
 
           return (
             <motion.div
               key={plan.id}
-              whileHover={{ y: -2 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.3 }}
             >
               <Card
-                className={`relative py-6 ${
-                  plan.popular
-                    ? 'border-primary shadow-lg scale-[1.02]'
-                    : ''
-                } ${isCurrent ? 'ring-2 ring-primary' : ''}`}
+                className={`py-4 relative overflow-hidden ${
+                  isCurrent ? 'border-primary ring-2 ring-primary/20' : ''
+                } ${plan.popular ? 'border-accent' : ''}`}
               >
                 {plan.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
-                    Mas Popular
-                  </Badge>
+                  <div className="absolute top-0 right-0 bg-accent text-accent-foreground text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+                    Popular
+                  </div>
                 )}
 
-                <CardHeader className="items-center text-center pb-2">
-                  <div
-                    className={`size-12 rounded-full flex items-center justify-center mb-2 ${
-                      plan.popular
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    <PlanIcon className="size-6" />
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`size-10 rounded-full flex items-center justify-center ${
+                      isCurrent ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      <PlanIcon className="size-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
+                      <CardDescription>{plan.description}</CardDescription>
+                    </div>
                   </div>
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <CardDescription>{plan.description}</CardDescription>
                 </CardHeader>
 
-                <CardContent className="text-center space-y-1">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-3xl font-bold text-foreground">{plan.price}</span>
-                    <span className="text-muted-foreground text-sm">{plan.period}</span>
+                <CardContent className="space-y-4">
+                  {/* Price */}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-foreground">
+                      ${price === 0 ? '0' : price.toFixed(2)}
+                    </span>
+                    {price > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        /{billing === 'annual' ? 'año' : 'mes'}
+                      </span>
+                    )}
                   </div>
-                  {plan.annualPrice && (
-                    <p className="text-xs text-primary font-medium">{plan.annualPrice}</p>
+                  {billing === 'annual' && plan.annualPrice > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Equivalente a ${monthlyEquivalent}/mes
+                    </p>
                   )}
-                </CardContent>
 
-                <CardContent className="space-y-2.5">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-start gap-2">
-                      <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
-                      <span className="text-sm text-foreground/80">{feature}</span>
-                    </div>
-                  ))}
-                </CardContent>
+                  {/* Features */}
+                  <ul className="space-y-2">
+                    {plan.features.map((feature) => (
+                      <li
+                        key={feature.text}
+                        className={`flex items-center gap-2 text-sm ${
+                          feature.included ? 'text-foreground' : 'text-muted-foreground/50'
+                        }`}
+                      >
+                        {feature.included ? (
+                          <CheckCircle2 className="size-4 text-primary shrink-0" />
+                        ) : (
+                          <X className="size-4 text-muted-foreground/30 shrink-0" />
+                        )}
+                        {feature.text}
+                      </li>
+                    ))}
+                  </ul>
 
-                <CardFooter className="flex-col">
+                  {/* CTA */}
                   <Button
                     className="w-full"
-                    variant={plan.popular ? 'default' : 'outline'}
-                    disabled={isCurrent}
-                    onClick={() => {
-                      setUserPlan(plan.id)
-                      setIsVip(plan.id !== 'free')
-                    }}
+                    variant={isCurrent ? 'secondary' : plan.popular ? 'default' : 'outline'}
+                    onClick={() => handleSelectPlan(plan.id)}
                   >
-                    {isCurrent ? 'Plan actual' : plan.cta}
+                    {isCurrent ? (
+                      <>
+                        <Check className="size-4 mr-1" />
+                        Plan actual
+                      </>
+                    ) : (
+                      plan.price === 0 ? 'Comenzar gratis' : 'Seleccionar plan'
+                    )}
                   </Button>
-                </CardFooter>
+                </CardContent>
               </Card>
             </motion.div>
           )

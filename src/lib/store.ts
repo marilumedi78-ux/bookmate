@@ -17,6 +17,8 @@ export interface BookItem {
   isFinished: boolean
   language: string
   createdAt: string
+  fileHash?: string
+  highlightsCount?: number
 }
 
 export interface HighlightItem {
@@ -27,6 +29,13 @@ export interface HighlightItem {
   color: string
   charStart: number
   charEnd: number
+}
+
+export interface DuplicateInfo {
+  duplicate: boolean
+  matchType: 'hash' | 'metadata' | null
+  existingBook: BookItem | null
+  message: string
 }
 
 interface BookMateState {
@@ -42,6 +51,12 @@ interface BookMateState {
   bookText: string
   setBookText: (text: string) => void
 
+  // Library books
+  books: BookItem[]
+  setBooks: (books: BookItem[]) => void
+  addBook: (book: BookItem) => void
+  removeBook: (id: string) => void
+
   // TTS state
   isPlaying: boolean
   setIsPlaying: (playing: boolean) => void
@@ -53,13 +68,13 @@ interface BookMateState {
   setReadingMode: (mode: ReadingMode) => void
 
   // Ambient sounds
-  ambientSound: string | null // 'rain' | 'cafe' | 'fire' | 'waves' | 'forest' | null
+  ambientSound: string | null
   setAmbientSound: (sound: string | null) => void
   ambientVolume: number
   setAmbientVolume: (vol: number) => void
 
   // Sleep timer
-  sleepTimer: number | null // minutes
+  sleepTimer: number | null
   setSleepTimer: (min: number | null) => void
 
   // UI state
@@ -88,8 +103,14 @@ interface BookMateState {
   // Loading states
   isLoadingBook: boolean
   setIsLoadingBook: (loading: boolean) => void
-  isGeneratingAudio: boolean
-  setIsGeneratingAudio: (generating: boolean) => void
+  isUploading: boolean
+  setIsUploading: (uploading: boolean) => void
+  isExplaining: boolean
+  setIsExplaining: (explaining: boolean) => void
+
+  // Duplicate detection
+  duplicateInfo: DuplicateInfo | null
+  setDuplicateInfo: (info: DuplicateInfo | null) => void
 
   // Admin
   isAdminPanelOpen: boolean
@@ -111,6 +132,12 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   // Book text content
   bookText: '',
   setBookText: (text) => set({ bookText: text }),
+
+  // Library books
+  books: [],
+  setBooks: (books) => set({ books }),
+  addBook: (book) => set((state) => ({ books: [book, ...state.books] })),
+  removeBook: (id) => set((state) => ({ books: state.books.filter((b) => b.id !== id) })),
 
   // TTS state
   isPlaying: false,
@@ -162,8 +189,14 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   // Loading states
   isLoadingBook: false,
   setIsLoadingBook: (loading) => set({ isLoadingBook: loading }),
-  isGeneratingAudio: false,
-  setIsGeneratingAudio: (generating) => set({ isGeneratingAudio: generating }),
+  isUploading: false,
+  setIsUploading: (uploading) => set({ isUploading: uploading }),
+  isExplaining: false,
+  setIsExplaining: (explaining) => set({ isExplaining: explaining }),
+
+  // Duplicate detection
+  duplicateInfo: null,
+  setDuplicateInfo: (info) => set({ duplicateInfo: info }),
 
   // Admin
   isAdminPanelOpen: false,
