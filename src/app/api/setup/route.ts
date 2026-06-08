@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { neon } from '@neondatabase/serverless'
 
-// GET /api/setup — Initialize database tables using raw SQL
+// GET /api/setup — Initialize database tables using Neon SQL directly
 export async function GET() {
   try {
-    // Create tables in order (respecting foreign key dependencies)
-    
+    const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
+    if (!connectionString) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No database connection string found. Check POSTGRES_URL env variable.' 
+      }, { status: 500 })
+    }
+
+    const sql = neon(connectionString)
+
     // 1. Users table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "email" TEXT NOT NULL UNIQUE,
@@ -25,10 +33,10 @@ export async function GET() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    `)
+    `
 
     // 2. Books table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "books" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "userId" TEXT NOT NULL,
@@ -48,13 +56,16 @@ export async function GET() {
         "language" TEXT NOT NULL DEFAULT 'es',
         "textContent" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "books_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    `)
+    `
+
+    // Add foreign key for books if not exists
+    await sql`ALTER TABLE "books" DROP CONSTRAINT IF EXISTS "books_userId_fkey"`
+    await sql`ALTER TABLE "books" ADD CONSTRAINT "books_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
 
     // 3. Highlights table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "highlights" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "userId" TEXT NOT NULL,
@@ -64,54 +75,60 @@ export async function GET() {
         "color" TEXT NOT NULL DEFAULT '#FBBF24',
         "charStart" INTEGER NOT NULL,
         "charEnd" INTEGER NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "highlights_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT "highlights_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    `)
+    `
+
+    await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_userId_fkey"`
+    await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_bookId_fkey"`
+    await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
 
     // 4. Achievements table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "achievements" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "userId" TEXT NOT NULL,
         "type" TEXT NOT NULL,
         "unlockedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
         CONSTRAINT "achievements_userId_type_unique" UNIQUE ("userId", "type")
       )
-    `)
+    `
+
+    await sql`ALTER TABLE "achievements" DROP CONSTRAINT IF EXISTS "achievements_userId_fkey"`
+    await sql`ALTER TABLE "achievements" ADD CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
 
     // 5. Reading logs table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "reading_logs" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "userId" TEXT NOT NULL,
         "bookId" TEXT NOT NULL,
         "minutes" INTEGER NOT NULL DEFAULT 0,
         "date" TEXT NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "reading_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT "reading_logs_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    `)
+    `
+
+    await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_userId_fkey"`
+    await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_bookId_fkey"`
+    await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
 
     // 6. VIP emails table
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS "vip_emails" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "email" TEXT NOT NULL UNIQUE,
         "addedBy" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    `)
+    `
 
     // Create demo user
-    const existingUser = await db.user.findUnique({ where: { email: 'demo@bookmate.app' } })
-    if (!existingUser) {
-      await db.user.create({
-        data: { email: 'demo@bookmate.app', name: 'Usuario Demo', plan: 'pro', isVip: true }
-      })
+    const existingUsers = await sql`SELECT id FROM "User" WHERE email = 'demo@bookmate.app'`
+    if (existingUsers.length === 0) {
+      await sql`INSERT INTO "User" (email, name, plan, "isVip") VALUES ('demo@bookmate.app', 'Usuario Demo', 'pro', true)`
     }
 
     return NextResponse.json({ 
