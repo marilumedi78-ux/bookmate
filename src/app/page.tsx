@@ -402,20 +402,57 @@ function LibraryTab() {
       setIsUploading(true)
       setDuplicateInfo(null)
 
-      const formData = new FormData()
-      formData.append('file', file)
-
       try {
+        // Parse PDF in the browser using pdfjs-dist
+        const pdfjsLib = await import('pdfjs-dist')
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+
+        const arrayBuffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        
+        // Extract text from all pages
+        const textParts: string[] = []
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const content = await page.getTextContent()
+          const pageText = content.items.map((item: any) => item.str).join(' ')
+          textParts.push(pageText)
+        }
+        const text = textParts.join('\n\n')
+
+        if (!text.trim()) {
+          throw new Error('No se pudo extraer texto del PDF. Puede ser un PDF escaneado (imagen).')
+        }
+
+        // Get PDF metadata
+        const metadata = await pdf.getMetadata().catch(() => null) as any
+        const info = metadata?.info || {}
+        const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
+        const author = info?.Author || 'Desconocido'
+
+        // Compute file hash
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+        // Send extracted data to API
         const res = await fetch('/api/books/upload', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            author,
+            fileName: file.name,
+            fileHash,
+            text,
+            totalPages: pdf.numPages,
+          }),
         })
 
         if (res.ok) {
           const data = await res.json()
 
           if (data.duplicate) {
-            // Show duplicate dialog
             setDuplicateInfo({
               duplicate: true,
               matchType: data.matchType,
@@ -423,16 +460,15 @@ function LibraryTab() {
               message: data.message,
             })
           } else {
-            // New book created successfully
             addBook(data.book)
             setUploadOpen(false)
           }
         }
-      } catch {
-        // Error handled silently
+      } catch (err) {
+        console.error('Upload error:', err)
+        // Show error to user briefly
       } finally {
         setIsUploading(false)
-        // Reset file input
         if (fileInputRef.current) fileInputRef.current.value = ''
       }
     },
@@ -457,7 +493,7 @@ function LibraryTab() {
   }, [duplicateInfo, removeBook, setDuplicateInfo])
 
   const handleDuplicateKeepBoth = useCallback(async () => {
-    // Re-upload with force flag
+    // Re-upload with force flag - need to re-parse the file
     const fileInput = fileInputRef.current
     if (!fileInput?.files?.[0]) {
       setDuplicateInfo(null)
@@ -465,14 +501,45 @@ function LibraryTab() {
     }
 
     setIsUploading(true)
-    const formData = new FormData()
-    formData.append('file', fileInput.files[0])
-    formData.append('force', 'true')
 
     try {
+      const file = fileInput.files[0]
+      const pdfjsLib = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      
+      const textParts: string[] = []
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const content = await page.getTextContent()
+        const pageText = content.items.map((item: any) => item.str).join(' ')
+        textParts.push(pageText)
+      }
+      const text = textParts.join('\n\n')
+
+      const metadata = await pdf.getMetadata().catch(() => null) as any
+      const info = metadata?.info || {}
+      const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
+      const author = info?.Author || 'Desconocido'
+
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
       const res = await fetch('/api/books/upload', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          author,
+          fileName: file.name,
+          fileHash,
+          text,
+          totalPages: pdf.numPages,
+          force: 'true',
+        }),
       })
       if (res.ok) {
         const data = await res.json()

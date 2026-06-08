@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { extractPdfText } from '@/lib/pdf-extract'
 import { createHash } from 'crypto'
 
 // Nice cover colors for book cards
 const COVER_COLORS = [
-  '#2A9D8F', // teal
-  '#E76F51', // coral
-  '#F4A261', // sandy
-  '#E9C46A', // golden
-  '#264653', // dark teal
-  '#D62828', // red
-  '#6A994E', // green
-  '#BC6C25', // brown
-  '#8338EC', // purple
-  '#3A86FF', // blue
-  '#FF006E', // pink
-  '#FB5607', // orange
+  '#2A9D8F', '#E76F51', '#F4A261', '#E9C46A', '#264653',
+  '#D62828', '#6A994E', '#BC6C25', '#8338EC', '#3A86FF',
+  '#FF006E', '#FB5607',
 ]
 
 // Helper to ensure demo user exists
@@ -30,41 +20,23 @@ async function ensureDemoUser() {
   return user
 }
 
-// Compute SHA-256 hash from buffer
-function computeHash(buffer: Buffer): string {
-  return createHash('sha256').update(buffer).digest('hex')
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
-    const force = formData.get('force') as string | null
+    const body = await request.json()
+    const { title, author, fileName, fileHash, text, totalPages, force } = body
 
-    if (!file) {
-      return NextResponse.json({ error: 'No se proporcionó ningún archivo' }, { status: 400 })
+    if (!title || !text) {
+      return NextResponse.json({ error: 'Faltan datos requeridos (título y texto)' }, { status: 400 })
     }
-
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      return NextResponse.json({ error: 'Solo se aceptan archivos PDF' }, { status: 400 })
-    }
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    // Compute file hash for duplicate detection
-    const fileHash = computeHash(buffer)
 
     // Ensure demo user exists
     const user = await ensureDemoUser()
 
-    // Skip duplicate checks if force=true (user chose "Guardar ambos")
-    if (force !== 'true') {
-      // Check for duplicates by hash (exact same file)
+    // Skip duplicate checks if force=true
+    if (force !== 'true' && fileHash) {
       const existingByHash = await db.book.findFirst({
         where: { userId: user.id, fileHash }
       })
-
       if (existingByHash) {
         return NextResponse.json({
           duplicate: true,
@@ -75,25 +47,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract text from PDF
-    const data = await extractPdfText(buffer)
-    const text = data.text || ''
-
-    // Extract metadata
-    const title = (data.info?.Title as string) || file.name.replace(/\.pdf$/i, '') || 'Sin título'
-    const author = (data.info?.Author as string) || 'Desconocido'
-
-    // Check for duplicates by title + author (different file, same book)
-    // Skip if force=true
+    // Check for duplicates by title + author
     if (force !== 'true') {
       const existingByMeta = await db.book.findFirst({
         where: {
           userId: user.id,
           title: { equals: title, mode: 'insensitive' },
-          author: { equals: author, mode: 'insensitive' },
+          author: { equals: author || 'Desconocido', mode: 'insensitive' },
         }
       })
-
       if (existingByMeta) {
         return NextResponse.json({
           duplicate: true,
@@ -104,23 +66,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Pick a random cover color
     const coverColor = COVER_COLORS[Math.floor(Math.random() * COVER_COLORS.length)]
-    const totalPages = data.numpages || 0
     const totalChars = text.length
     const estimatedMin = Math.ceil(text.split(/\s+/).filter(Boolean).length / 150)
 
-    // Create the book record with text stored in DB
     const book = await db.book.create({
       data: {
         userId: user.id,
         title,
-        author,
-        fileName: file.name,
+        author: author || 'Desconocido',
+        fileName: fileName || 'unknown.pdf',
         filePath: '',
-        fileHash,
+        fileHash: fileHash || null,
         coverColor,
-        totalPages,
+        totalPages: totalPages || 0,
         totalChars,
         estimatedMin,
         language: 'es',
@@ -131,6 +90,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ duplicate: false, book })
   } catch (error) {
     console.error('Upload error:', error)
-    return NextResponse.json({ error: 'Error al procesar el PDF' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Error al guardar el libro',
+      details: errorMessage 
+    }, { status: 500 })
   }
 }
