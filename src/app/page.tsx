@@ -403,9 +403,27 @@ function LibraryTab() {
       setDuplicateInfo(null)
 
       try {
-        // Load PDF.js from CDN
-        const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
+        // Load PDF.js from CDN using script tag (most compatible approach)
+        const loadPdfJs = (): Promise<any> => {
+          if ((window as any).pdfjsLib) return Promise.resolve((window as any).pdfjsLib)
+          return new Promise((resolve, reject) => {
+            const script = document.createElement('script')
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+            script.onload = () => {
+              const lib = (window as any).pdfjsLib
+              if (lib) {
+                lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+                resolve(lib)
+              } else {
+                reject(new Error('PDF.js no se cargó correctamente'))
+              }
+            }
+            script.onerror = () => reject(new Error('Error al cargar PDF.js desde CDN'))
+            document.head.appendChild(script)
+          })
+        }
 
+        const pdfjsLib = await loadPdfJs()
         const arrayBuffer = await file.arrayBuffer()
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
         
@@ -502,7 +520,9 @@ function LibraryTab() {
 
     try {
       const file = fileInput.files[0]
-      const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
+      // Use already-loaded PDF.js from window
+      const pdfjsLib = (window as any).pdfjsLib
+      if (!pdfjsLib) throw new Error('PDF.js no disponible')
 
       const arrayBuffer = await file.arrayBuffer()
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
