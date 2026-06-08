@@ -403,12 +403,11 @@ function LibraryTab() {
       setDuplicateInfo(null)
 
       try {
-        // Parse PDF in the browser using pdfjs-dist
-        const pdfjsLib = await import('pdfjs-dist')
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+        // Load PDF.js from CDN
+        const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
 
         const arrayBuffer = await file.arrayBuffer()
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
         
         // Extract text from all pages
         const textParts: string[] = []
@@ -466,7 +465,6 @@ function LibraryTab() {
         }
       } catch (err) {
         console.error('Upload error:', err)
-        // Show error to user briefly
       } finally {
         setIsUploading(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -504,11 +502,10 @@ function LibraryTab() {
 
     try {
       const file = fileInput.files[0]
-      const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+      const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
 
       const arrayBuffer = await file.arrayBuffer()
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
       
       const textParts: string[] = []
       for (let i = 1; i <= pdf.numPages; i++) {
