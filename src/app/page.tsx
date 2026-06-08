@@ -334,6 +334,7 @@ function LibraryTab() {
   const [loadingBooks, setLoadingBooks] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<BookItem | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'author'>('grid')
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch books on mount
@@ -401,6 +402,7 @@ function LibraryTab() {
 
       setIsUploading(true)
       setDuplicateInfo(null)
+      setUploadError(null)
 
       try {
         // Load PDF.js from CDN using script tag (most compatible approach)
@@ -466,23 +468,27 @@ function LibraryTab() {
           }),
         })
 
-        if (res.ok) {
-          const data = await res.json()
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error del servidor (${res.status})`)
+        }
 
-          if (data.duplicate) {
-            setDuplicateInfo({
-              duplicate: true,
-              matchType: data.matchType,
-              existingBook: data.existingBook,
-              message: data.message,
-            })
-          } else {
-            addBook(data.book)
-            setUploadOpen(false)
-          }
+        const data = await res.json()
+
+        if (data.duplicate) {
+          setDuplicateInfo({
+            duplicate: true,
+            matchType: data.matchType,
+            existingBook: data.existingBook,
+            message: data.message,
+          })
+        } else {
+          addBook(data.book)
+          setUploadOpen(false)
         }
       } catch (err) {
         console.error('Upload error:', err)
+        setUploadError(err instanceof Error ? err.message : 'Error al subir el PDF')
       } finally {
         setIsUploading(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -746,6 +752,11 @@ function LibraryTab() {
               onChange={handleFileSelect}
             />
           </div>
+          {uploadError && (
+            <div className="mt-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg">
+              ⚠️ {uploadError}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
