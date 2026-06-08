@@ -1115,29 +1115,52 @@ function ReaderTab() {
     }
   }
 
-  // Split text into sentences for rendering with highlighting
+  // Render text efficiently - only split around current position for highlighting
+  // Instead of splitting entire text into spans (crashes on large books),
+  // render plain text with a highlighted window around currentCharIndex
   const renderText = () => {
     if (!bookText) return null
 
-    const sentences = bookText.split(/(?<=[.!?])\s+/)
-    let charPos = 0
+    // If no active reading position, just show plain text (fast)
+    if (currentCharIndex === 0) {
+      return <span>{bookText}</span>
+    }
 
-    return sentences.map((sentence, i) => {
-      const start = charPos
-      const end = charPos + sentence.length
-      charPos = end + 1
+    // Find sentence boundaries around current position
+    const windowSize = 500 // chars around current position to check for highlighting
+    const before = Math.max(0, currentCharIndex - windowSize)
+    const after = Math.min(bookText.length, currentCharIndex + windowSize)
+    
+    // Split only the window area into sentences for highlighting
+    const beforeText = bookText.slice(0, before)
+    const windowText = bookText.slice(before, after)
+    const afterText = bookText.slice(after)
+    
+    const sentences = windowText.split(/(?<=[.!?])\s+/)
+    let charPos = before
 
-      const isActive = currentCharIndex >= start && currentCharIndex < end
+    return (
+      <>
+        {beforeText}
+        {sentences.map((sentence, i) => {
+          const start = charPos
+          const end = charPos + sentence.length
+          charPos = end + 1
 
-      return (
-        <span
-          key={i}
-          className={isActive ? 'highlight-active' : ''}
-        >
-          {sentence}{' '}
-        </span>
-      )
-    })
+          const isActive = currentCharIndex >= start && currentCharIndex < end
+
+          return (
+            <span
+              key={i}
+              className={isActive ? 'highlight-active' : ''}
+            >
+              {sentence}{' '}
+            </span>
+          )
+        })}
+        {afterText}
+      </>
+    )
   }
 
   const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
