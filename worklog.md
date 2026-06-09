@@ -184,3 +184,39 @@ Stage Summary:
 - Prisma schema switched from SQLite to PostgreSQL (compatible with Vercel Postgres/Neon)
 - All queries that return book data explicitly exclude textContent to avoid transferring large text unnecessarily
 - App is ready for Vercel deployment with a PostgreSQL DATABASE_URL
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: Implement TTS audio playback for the reader
+
+Work Log:
+- Investigated the ReaderTab code and found that pressing Play only toggled isPlaying state but never produced audio
+- Created /src/lib/use-tts.ts custom hook using Web Speech API (SpeechSynthesis)
+  - Splits book text into sentences using regex
+  - Speaks sentence-by-sentence, advancing currentCharIndex as each sentence completes
+  - Supports play/pause/resume/skip/seekTo operations
+  - Handles speed changes by restarting with new rate
+  - Mobile-compatible: cancels and re-speaks with small delay for mobile browsers
+  - iOS workaround: loads voices asynchronously via onvoiceschanged
+  - Consecutive error counter: stops after 3 consecutive TTS errors to prevent infinite loops
+  - Uses refs (speakSentenceRef) to avoid circular dependency issues
+- Modified ReaderTab in page.tsx:
+  - Imported and used useTTS hook
+  - Replaced empty handlePlayPause with actual tts.play()/tts.pause() calls
+  - Replaced handleSkipForward/SkipBack with tts.skipForward()/skipBack()
+  - Replaced handleProgressChange with tts.seekTo()
+  - Added auto-scroll to active sentence when TTS is playing
+  - Added "Leyendo en voz alta..." indicator with pulsing Volume2 icon and "Sube el volumen" hint
+  - Added speechSupported and hasVoices checks with warning banners
+  - Added cleanup effect to stop TTS when leaving reader tab
+- Reverted agent's incorrect Prisma schema change (SQLite back to PostgreSQL)
+- Fixed lint errors: moved hooks before early return, removed duplicate auto-scroll effect
+- All lint checks pass
+
+Stage Summary:
+- TTS audio playback is now fully implemented using Web Speech API
+- Works on both desktop and mobile browsers
+- Reader shows visual feedback: "Leyendo en voz alta..." banner, yellow highlight on current sentence, auto-scroll
+- Graceful degradation when voices are not available (warning banner)
+- Consecutive error counter prevents infinite error loops

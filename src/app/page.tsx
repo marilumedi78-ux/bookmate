@@ -53,6 +53,7 @@ import {
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
+import { useTTS } from '@/lib/use-tts'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
@@ -935,6 +936,9 @@ function ReaderTab() {
     setIsLoadingBook,
   } = store
 
+  // TTS engine
+  const tts = useTTS()
+
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
   const [selectedText, setSelectedText] = useState('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -957,6 +961,15 @@ function ReaderTab() {
     fetchHighlights()
     return () => { cancelled = true }
   }, [currentBook, setHighlights])
+
+  // Stop TTS when leaving the reader tab
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
 
   // Debounced save progress
   const saveProgress = useCallback(
@@ -994,6 +1007,32 @@ function ReaderTab() {
     }
   }, [currentCharIndex, currentBook, saveProgress])
 
+  // Auto-scroll to active sentence when TTS is playing
+  useEffect(() => {
+    if (!isPlaying || currentCharIndex === 0) return
+    const activeEl = document.getElementById('tts-active-sentence')
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [currentCharIndex, isPlaying])
+
+  // Check if speech synthesis is available and has voices
+  const [hasVoices, setHasVoices] = useState(false)
+  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+
+  useEffect(() => {
+    if (!speechSupported) return
+    const checkVoices = () => {
+      const voices = window.speechSynthesis.getVoices()
+      setHasVoices(voices.length > 0)
+    }
+    checkVoices()
+    window.speechSynthesis.onvoiceschanged = checkVoices
+    // Some browsers load voices async, check again after a delay
+    const timer = setTimeout(checkVoices, 1000)
+    return () => clearTimeout(timer)
+  }, [speechSupported])
+
   // Empty state
   if (!currentBook) {
     return (
@@ -1013,24 +1052,24 @@ function ReaderTab() {
   const progressPercent = totalChars > 0 ? (currentCharIndex / totalChars) * 100 : 0
 
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying)
+    if (isPlaying) {
+      tts.pause()
+    } else {
+      tts.play()
+    }
   }
 
   const handleSkipForward = () => {
-    const skip = Math.max(Math.floor(totalChars * (10 / 120)), 200)
-    const newIdx = Math.min(currentCharIndex + skip, totalChars)
-    setCurrentCharIndex(newIdx)
+    tts.skipForward()
   }
 
   const handleSkipBack = () => {
-    const skip = Math.max(Math.floor(totalChars * (10 / 120)), 200)
-    const newIdx = Math.max(currentCharIndex - skip, 0)
-    setCurrentCharIndex(newIdx)
+    tts.skipBack()
   }
 
   const handleProgressChange = (value: number[]) => {
     const newIdx = Math.floor((value[0] / 100) * totalChars)
-    setCurrentCharIndex(newIdx)
+    tts.seekTo(newIdx)
   }
 
   const handleTextSelect = () => {
@@ -1152,6 +1191,7 @@ function ReaderTab() {
           return (
             <span
               key={i}
+              id={isActive ? 'tts-active-sentence' : undefined}
               className={isActive ? 'highlight-active' : ''}
             >
               {sentence}{' '}
@@ -1173,6 +1213,31 @@ function ReaderTab() {
         <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
         <p className="text-xs text-muted-foreground">{currentBook.author}</p>
       </div>
+
+      {/* TTS playing indicator */}
+      {isPlaying && (
+        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2">
+          <Volume2 className="size-3.5 text-primary animate-pulse" />
+          <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
+          <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
+        </div>
+      )}
+
+      {/* Speech not supported warning */}
+      {!speechSupported && (
+        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
+          <AlertTriangle className="size-3.5 text-accent" />
+          <span className="text-xs text-accent-foreground">Tu navegador no soporta lectura en voz alta</span>
+        </div>
+      )}
+
+      {/* No voices available warning */}
+      {speechSupported && !hasVoices && (
+        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
+          <AlertTriangle className="size-3.5 text-accent" />
+          <span className="text-xs text-accent-foreground">No hay voces de lectura disponibles en este navegador</span>
+        </div>
+      )}
 
       {/* Text area */}
       <ScrollArea className="flex-1 px-4 py-4">
