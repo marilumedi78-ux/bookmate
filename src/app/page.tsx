@@ -1028,7 +1028,6 @@ function ReaderTab() {
     }
     checkVoices()
     window.speechSynthesis.onvoiceschanged = checkVoices
-    // Some browsers load voices async, check again after a delay
     const timer = setTimeout(checkVoices, 1000)
     return () => clearTimeout(timer)
   }, [speechSupported])
@@ -1214,8 +1213,8 @@ function ReaderTab() {
         <p className="text-xs text-muted-foreground">{currentBook.author}</p>
       </div>
 
-      {/* TTS playing indicator */}
-      {isPlaying && (
+      {/* TTS Status indicators */}
+      {tts.ttsStatus === 'playing' && (
         <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2">
           <Volume2 className="size-3.5 text-primary animate-pulse" />
           <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
@@ -1223,8 +1222,38 @@ function ReaderTab() {
         </div>
       )}
 
+      {tts.ttsStatus === 'loading' && (
+        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2">
+          <Loader2 className="size-3.5 text-primary animate-spin" />
+          <span className="text-xs text-primary font-medium">Cargando voz...</span>
+        </div>
+      )}
+
+      {tts.ttsStatus === 'paused' && (
+        <div className="px-4 py-1.5 bg-muted/50 border-b flex items-center gap-2">
+          <Pause className="size-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Pausado</span>
+        </div>
+      )}
+
+      {/* TTS Error */}
+      {tts.ttsStatus === 'error' && tts.ttsError && (
+        <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2">
+          <AlertTriangle className="size-3.5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="text-xs text-destructive font-medium">{tts.ttsError}</span>
+            <button
+              className="text-[10px] text-muted-foreground underline ml-2"
+              onClick={() => { tts.stop(); tts.play(); }}
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Speech not supported warning */}
-      {!speechSupported && (
+      {tts.ttsStatus === 'not-supported' && (
         <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
           <AlertTriangle className="size-3.5 text-accent" />
           <span className="text-xs text-accent-foreground">Tu navegador no soporta lectura en voz alta</span>
@@ -1232,10 +1261,10 @@ function ReaderTab() {
       )}
 
       {/* No voices available warning */}
-      {speechSupported && !hasVoices && (
+      {speechSupported && !hasVoices && tts.ttsStatus !== 'playing' && tts.ttsStatus !== 'loading' && (
         <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
           <AlertTriangle className="size-3.5 text-accent" />
-          <span className="text-xs text-accent-foreground">No hay voces de lectura disponibles en este navegador</span>
+          <span className="text-xs text-accent-foreground">Cargando voces... Si no funciona, recarga la página</span>
         </div>
       )}
 
