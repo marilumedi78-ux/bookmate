@@ -1206,16 +1206,16 @@ function ReaderTab() {
   const ReadingModeIcon = readingModeIcon
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Book title */}
-      <div className="px-4 py-3 border-b">
+      <div className="px-4 py-3 border-b shrink-0">
         <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
         <p className="text-xs text-muted-foreground">{currentBook.author}</p>
       </div>
 
       {/* TTS Status indicators */}
       {tts.ttsStatus === 'playing' && (
-        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2">
+        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
           <Volume2 className="size-3.5 text-primary animate-pulse" />
           <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
           <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
@@ -1223,14 +1223,14 @@ function ReaderTab() {
       )}
 
       {tts.ttsStatus === 'loading' && (
-        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2">
+        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
           <Loader2 className="size-3.5 text-primary animate-spin" />
           <span className="text-xs text-primary font-medium">Cargando voz...</span>
         </div>
       )}
 
       {tts.ttsStatus === 'paused' && (
-        <div className="px-4 py-1.5 bg-muted/50 border-b flex items-center gap-2">
+        <div className="px-4 py-1.5 bg-muted/50 border-b flex items-center gap-2 shrink-0">
           <Pause className="size-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">Pausado</span>
         </div>
@@ -1238,7 +1238,7 @@ function ReaderTab() {
 
       {/* TTS Error */}
       {tts.ttsStatus === 'error' && tts.ttsError && (
-        <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2">
+        <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2 shrink-0">
           <AlertTriangle className="size-3.5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="text-xs text-destructive font-medium">{tts.ttsError}</span>
@@ -1254,7 +1254,7 @@ function ReaderTab() {
 
       {/* Speech not supported warning */}
       {tts.ttsStatus === 'not-supported' && (
-        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
+        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
           <AlertTriangle className="size-3.5 text-accent" />
           <span className="text-xs text-accent-foreground">Tu navegador no soporta lectura en voz alta</span>
         </div>
@@ -1262,14 +1262,14 @@ function ReaderTab() {
 
       {/* No voices available warning */}
       {speechSupported && !hasVoices && tts.ttsStatus !== 'playing' && tts.ttsStatus !== 'loading' && (
-        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2">
+        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
           <AlertTriangle className="size-3.5 text-accent" />
           <span className="text-xs text-accent-foreground">Cargando voces... Si no funciona, recarga la página</span>
         </div>
       )}
 
-      {/* Text area */}
-      <ScrollArea className="flex-1 px-4 py-4">
+      {/* Text area - fills remaining space, scrolls independently */}
+      <ScrollArea className="flex-1 min-h-0 px-4 py-4">
         {isLoadingBook ? (
           <div className="space-y-3 max-w-2xl mx-auto">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -1278,7 +1278,7 @@ function ReaderTab() {
           </div>
         ) : (
           <div
-            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text"
+            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text pb-4"
             onMouseUp={handleTextSelect}
             onTouchEnd={handleTextSelect}
           >
@@ -1287,12 +1287,12 @@ function ReaderTab() {
         )}
       </ScrollArea>
 
-      {/* Selection actions */}
+      {/* Selection actions - above player bar */}
       {selectedText && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 px-4 py-2 border-t bg-muted/50"
+          className="flex items-center gap-2 px-4 py-2 border-t bg-muted/50 shrink-0"
         >
           <Button size="sm" variant="outline" onClick={handleHighlight}>
             <BookMarked className="size-3.5 mr-1" />
@@ -1315,15 +1315,15 @@ function ReaderTab() {
 
       {/* Highlights count */}
       {highlights.length > 0 && (
-        <div className="px-4 py-1.5 border-t bg-muted/30">
+        <div className="px-4 py-1.5 border-t bg-muted/30 shrink-0">
           <p className="text-xs text-muted-foreground">
             {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
           </p>
         </div>
       )}
 
-      {/* Player bar */}
-      <div className="border-t bg-background/95 backdrop-blur-sm px-4 py-3 space-y-3">
+      {/* Player bar - ALWAYS VISIBLE at bottom (sticky) */}
+      <div className="border-t bg-background/95 backdrop-blur-sm px-4 py-3 space-y-2 shrink-0">
         {/* Progress slider */}
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-muted-foreground w-8 text-right">
@@ -1339,14 +1339,13 @@ function ReaderTab() {
           <span className="text-[11px] text-muted-foreground w-8">100%</span>
         </div>
 
-        {/* Controls */}
+        {/* Main controls - compact row */}
         <div className="flex items-center justify-between">
-          {/* Left controls */}
+          {/* Left: Speed + Mode */}
           <div className="flex items-center gap-1">
-            {/* Speed */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-xs font-mono">
+                <Button variant="ghost" size="sm" className="text-xs font-mono h-8">
                   {playbackSpeed}x
                 </Button>
               </DropdownMenuTrigger>
@@ -1366,7 +1365,6 @@ function ReaderTab() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Reading mode */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8">
@@ -1395,8 +1393,8 @@ function ReaderTab() {
             </DropdownMenu>
           </div>
 
-          {/* Center controls */}
-          <div className="flex items-center gap-2">
+          {/* Center: Skip Back + Play/Pause + Skip Forward */}
+          <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="size-9" onClick={handleSkipBack}>
               <SkipBack className="size-4" />
             </Button>
@@ -1416,9 +1414,8 @@ function ReaderTab() {
             </Button>
           </div>
 
-          {/* Right controls */}
+          {/* Right: Timer + Ambient + Explica */}
           <div className="flex items-center gap-1">
-            {/* Sleep timer */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1457,7 +1454,6 @@ function ReaderTab() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Ambient sound */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1493,7 +1489,6 @@ function ReaderTab() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Explica */}
             <Button
               variant="ghost"
               size="icon"
