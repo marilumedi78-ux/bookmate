@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// Allow up to 30 seconds for upload (large PDFs can take time)
+export const maxDuration = 30
+
 // Helper to ensure demo user exists
 async function ensureDemoUser() {
   let user = await db.user.findUnique({ where: { email: 'demo@bookmate.app' } })
