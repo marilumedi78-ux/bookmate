@@ -265,7 +265,7 @@ export default function Home() {
         </header>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="flex-1 pb-20 overflow-y-auto">
+        <main className={`flex-1 ${activeTab === 'reader' ? 'overflow-hidden' : 'pb-20 overflow-y-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -273,6 +273,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
+              className={activeTab === 'reader' ? 'h-full' : ''}
             >
               {activeTab === 'library' && <LibraryTab />}
               {activeTab === 'reader' && <ReaderTab />}
@@ -1205,8 +1206,12 @@ function ReaderTab() {
   const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
   const ReadingModeIcon = readingModeIcon
 
+  // Calculate the bottom offset for the fixed player bar (tab bar height)
+  // Tab bar is approximately 60px (py-2.5 + icon + text + border)
+  const TAB_BAR_HEIGHT = 60
+
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col min-h-0 h-full">
       {/* Book title */}
       <div className="px-4 py-3 border-b shrink-0">
         <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
@@ -1269,6 +1274,7 @@ function ReaderTab() {
       )}
 
       {/* Text area - fills remaining space, scrolls independently */}
+      {/* Extra bottom padding to account for the fixed player bar */}
       <ScrollArea className="flex-1 min-h-0 px-4 py-4">
         {isLoadingBook ? (
           <div className="space-y-3 max-w-2xl mx-auto">
@@ -1278,7 +1284,7 @@ function ReaderTab() {
           </div>
         ) : (
           <div
-            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text pb-4"
+            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text pb-40"
             onMouseUp={handleTextSelect}
             onTouchEnd={handleTextSelect}
           >
@@ -1287,43 +1293,49 @@ function ReaderTab() {
         )}
       </ScrollArea>
 
-      {/* Selection actions - above player bar */}
-      {selectedText && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 px-4 py-2 border-t bg-muted/50 shrink-0"
-        >
-          <Button size="sm" variant="outline" onClick={handleHighlight}>
-            <BookMarked className="size-3.5 mr-1" />
-            Subrayar
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleExplica}>
-            <Sparkles className="size-3.5 mr-1" />
-            Explica
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto"
-            onClick={() => setSelectedText('')}
-          >
-            <X className="size-3.5" />
-          </Button>
-        </motion.div>
-      )}
+      {/* Fixed bottom controls - always visible above tab bar */}
+      <div
+        className="fixed left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t"
+        style={{ bottom: `${TAB_BAR_HEIGHT}px` }}
+      >
+        <div className="max-w-2xl mx-auto">
+          {/* Selection actions */}
+          {selectedText && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50"
+            >
+              <Button size="sm" variant="outline" onClick={handleHighlight}>
+                <BookMarked className="size-3.5 mr-1" />
+                Subrayar
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleExplica}>
+                <Sparkles className="size-3.5 mr-1" />
+                Explica
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto"
+                onClick={() => setSelectedText('')}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </motion.div>
+          )}
 
-      {/* Highlights count */}
-      {highlights.length > 0 && (
-        <div className="px-4 py-1.5 border-t bg-muted/30 shrink-0">
-          <p className="text-xs text-muted-foreground">
-            {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
-          </p>
-        </div>
-      )}
+          {/* Highlights count */}
+          {highlights.length > 0 && (
+            <div className="px-4 py-1.5 border-b bg-muted/30">
+              <p className="text-xs text-muted-foreground">
+                {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
+              </p>
+            </div>
+          )}
 
-      {/* Player bar - ALWAYS VISIBLE at bottom (sticky) */}
-      <div className="border-t bg-background/95 backdrop-blur-sm px-4 py-3 space-y-2 shrink-0">
+          {/* Player bar */}
+          <div className="px-4 py-3 space-y-2">
         {/* Progress slider */}
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-muted-foreground w-8 text-right">
@@ -1498,6 +1510,8 @@ function ReaderTab() {
               <Sparkles className="size-4" />
             </Button>
           </div>
+        </div>
+      </div>
         </div>
       </div>
 

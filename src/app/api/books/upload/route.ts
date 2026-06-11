@@ -41,45 +41,21 @@ export async function POST(request: NextRequest) {
     const wordCount = text.split(/\s+/).length
     const estimatedMin = Math.max(1, Math.round(wordCount / 250))
 
-    // Duplicate detection (unless force=true)
-    if (!force) {
-      // Check by file hash
-      if (fileHash) {
-        const existingByHash = await db.book.findFirst({
-          where: { userId: user.id, fileHash }
-        })
-        if (existingByHash) {
-          return NextResponse.json({
-            duplicate: true,
-            matchType: 'hash',
-            existingBook: {
-              id: existingByHash.id,
-              title: existingByHash.title,
-              author: existingByHash.author,
-            },
-            message: `Ya tienes un libro idéntico: "${existingByHash.title}"`
-          })
-        }
-      }
-
-      // Check by title + author
-      const existingByMeta = await db.book.findFirst({
-        where: {
-          userId: user.id,
-          title: { equals: title, mode: 'insensitive' },
-          author: { equals: author || 'Desconocido', mode: 'insensitive' },
-        }
+    // Duplicate detection - only by file hash (precise, no false positives)
+    if (!force && fileHash) {
+      const existingByHash = await db.book.findFirst({
+        where: { userId: user.id, fileHash }
       })
-      if (existingByMeta) {
+      if (existingByHash) {
         return NextResponse.json({
           duplicate: true,
-          matchType: 'metadata',
+          matchType: 'hash',
           existingBook: {
-            id: existingByMeta.id,
-            title: existingByMeta.title,
-            author: existingByMeta.author,
+            id: existingByHash.id,
+            title: existingByHash.title,
+            author: existingByHash.author,
           },
-          message: `Ya tienes un libro con el mismo título y autor: "${existingByMeta.title}"`
+          message: `Ya tienes un libro idéntico: "${existingByHash.title}"`
         })
       }
     }
