@@ -1,8 +1,9 @@
-// BookMate Service Worker — basic cache-first strategy
-const CACHE_NAME = 'bookmate-v1';
-const PRECACHE_URLS = [
-  '/',
-];
+// BookMate Service Worker — versioned cache with update support
+// CACHE_VERSION is auto-generated at build time
+const CACHE_VERSION = '__BOOKMATE_SW_V__';
+const CACHE_NAME = `bookmate-${CACHE_VERSION}`;
+
+const PRECACHE_URLS = ['/'];
 
 // Install — precache shell
 self.addEventListener('install', (event) => {
@@ -11,10 +12,11 @@ self.addEventListener('install', (event) => {
       return cache.addAll(PRECACHE_URLS);
     })
   );
-  self.skipWaiting();
+  // Don't skipWaiting — let the app control when to activate the new SW
+  // This allows the update banner to appear first
 });
 
-// Activate — clean old caches
+// Activate — clean old caches and claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -22,6 +24,13 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// Listen for "SKIP_WAITING" message from the app to activate new SW
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch — network first, fallback to cache

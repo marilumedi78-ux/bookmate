@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import {
@@ -50,6 +50,8 @@ import {
   Copy,
   LayoutGrid,
   Users,
+  RefreshCw,
+  Download,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -197,6 +199,105 @@ export default function Home() {
     localStorage.setItem('bookmate-install-dismissed', 'true')
   }, [])
 
+  // ── Update Detection ──
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+
+    // Check if there's already a waiting service worker on load
+    const checkExistingWorker = () => {
+      const reg = navigator.serviceWorker.controller
+      // If there's no controller, this is the first load
+    }
+
+    // Listen for service worker updates
+    navigator.serviceWorker.ready.then((registration) => {
+      // Check if there's already a waiting worker
+      if (registration.waiting) {
+        setNewWorker(registration.waiting)
+        setUpdateAvailable(true)
+      }
+
+      // Listen for new service workers
+      registration.addEventListener('updatefound', () => {
+        const newSW = registration.installing
+        if (!newSW) return
+
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version installed and waiting!
+            setNewWorker(newSW)
+            setUpdateAvailable(true)
+          }
+        })
+      })
+
+      // Periodically check for updates every 5 minutes
+      const interval = setInterval(() => {
+        registration.update().catch(() => {})
+      }, 5 * 60 * 1000)
+
+      return () => clearInterval(interval)
+    })
+
+    // Also listen for controller change (SW took over)
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
+    })
+
+    checkExistingWorker()
+  }, [])
+
+  // Also poll the /api/version endpoint every 5 minutes to detect deploys
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let currentVersion: string | null = null
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (!currentVersion) {
+            currentVersion = data.version
+            return
+          }
+          if (data.version !== currentVersion) {
+            // New version detected on server — force SW update check
+            if ('serviceWorker' in navigator) {
+              const reg = await navigator.serviceWorker.getRegistration()
+              if (reg) {
+                await reg.update()
+              }
+            }
+          }
+        }
+      } catch {
+        // Silently fail — no internet or similar
+      }
+    }
+
+    checkVersion()
+    const interval = setInterval(checkVersion, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleUpdate = useCallback(() => {
+    if (!newWorker) return
+    // Tell the waiting service worker to skip waiting and activate
+    newWorker.postMessage({ type: 'SKIP_WAITING' })
+    // The controllerchange event will reload the page
+  }, [newWorker])
+
+  const handleDismissUpdate = useCallback(() => {
+    setUpdateAvailable(false)
+  }, [])
+
   const handleDarkToggle = useCallback(() => {
     const newDark = !isDarkMode
     setIsDarkMode(newDark)
@@ -240,6 +341,36 @@ export default function Home() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Update Available Banner */}
+        <AnimatePresence>
+          {updateAvailable && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-3 flex items-center gap-3">
+                <div className="size-9 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <RefreshCw className="size-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">Nueva versión disponible</p>
+                  <p className="text-xs text-muted-foreground">Actualiza para disfrutar las últimas mejoras</p>
+                </div>
+                <Button size="sm" onClick={handleUpdate} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Download className="size-3.5 mr-1" />
+                  Actualizar
+                </Button>
+                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissUpdate}>
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── HEADER ── */}
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
           <div className="flex items-center justify-between px-4 h-14">

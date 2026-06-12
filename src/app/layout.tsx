@@ -83,7 +83,9 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                  // Register SW with stable URL — updateViaCache: 'none' ensures
+                  // the browser always checks the network for SW updates
+                  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
                 });
               }
             `,
