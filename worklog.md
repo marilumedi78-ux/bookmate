@@ -45,3 +45,22 @@ Stage Summary:
 - Reading Mode: Visual (text only), Audio (headphones view), Both (default) ✅
 - Explica works with selected text ✅
 - Vercel deployment triggered via git push
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix invisible Mensual/Anual pricing toggle
+
+Work Log:
+- User reported the Mensual/Anual toggle was not visible in the pricing section
+- Found the toggle was a custom button (44x24px) that was too small/invisible
+- Replaced with a proper segmented control UI pattern (two visible buttons side by side)
+- Used bg-muted container with bg-background active state, clearly visible
+- Added "-36%" badge next to Anual button
+- Verified in browser: toggle is visible, clickable, and prices update correctly
+- Pushed to Vercel
+
+Stage Summary:
+- Pricing toggle now uses segmented control pattern (clearly visible buttons)
+- Mensual/Anual switching works correctly
+- Prices verified: Plus $12.99/mo|$99.99/yr, Pro $17.99/mo|$129.99/yr
