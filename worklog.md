@@ -64,3 +64,34 @@ Stage Summary:
 - Pricing toggle now uses segmented control pattern (clearly visible buttons)
 - Mensual/Anual switching works correctly
 - Prices verified: Plus $12.99/mo|$99.99/yr, Pro $17.99/mo|$129.99/yr
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Implement PWA update detection and notification system
+
+Work Log:
+- Rewrote `/public/sw.js` with versioned cache (`__BOOKMATE_SW_V__` placeholder)
+- SW listens for `SKIP_WAITING` message to activate on user action
+- Created `/scripts/inject-sw-version.mjs` to replace placeholder with commit SHA at build time
+- Updated `package.json` build script: `node scripts/inject-sw-version.mjs && next build`
+- Created `/src/app/api/version/route.ts` endpoint returning current version + build time
+- Added update detection logic in `page.tsx`:
+  - Listens for `updatefound` event on SW registration
+  - Checks for waiting SW on page load
+  - Polls `/api/version` every 5 minutes to detect server-side deploys
+  - Periodically calls `registration.update()` every 5 minutes
+  - Listens for `controllerchange` to auto-reload after SW activation
+- Added animated "Nueva versión disponible" banner with emerald green styling
+- Banner shows RefreshCw icon, "Actualizar" button, dismiss X button
+- Clicking "Actualizar" sends SKIP_WAITING to new SW, which triggers page reload
+- Updated `layout.tsx` SW registration to use stable URL with `updateViaCache: 'none'`
+- Fixed false-positive update banner caused by `?v=Date.now()` cache busting in URL
+- Lint passes, dev server OK, pushed to Vercel
+
+Stage Summary:
+- PWA update system fully implemented
+- When a new deploy happens, users see a green "Nueva versión disponible" banner
+- Clicking "Actualizar" activates the new SW and reloads the page
+- Auto-checks for updates every 5 minutes via SW registration + version API poll
+- Build script auto-injects version hash into service worker cache name
