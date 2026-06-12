@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import {
   BookOpen,
   Headphones,
@@ -52,6 +53,11 @@ import {
   Users,
   RefreshCw,
   Download,
+  LogOut,
+  Mail as MailIcon,
+  Lock as LockIcon,
+  Eye as EyeIcon,
+  EyeOff,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -109,6 +115,180 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 // ──────────────────────────────────────────────
+// Login / Register Screen
+// ──────────────────────────────────────────────
+function LoginScreen() {
+  const [isRegister, setIsRegister] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!email.trim() || !password.trim()) {
+      setError('Email y contraseña son requeridos')
+      return
+    }
+
+    if (isRegister && password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      if (isRegister) {
+        // Register first
+        const regRes = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
+        })
+        const regData = await regRes.json()
+
+        if (!regRes.ok) {
+          setError(regData.error || 'Error al crear la cuenta')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Then sign in
+      const result = await signIn('credentials', {
+        email: email.trim(),
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Email o contraseña incorrectos')
+      }
+    } catch {
+      setError('Error de conexión. Inténtalo de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-sm"
+      >
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <BookMateLogo size={64} />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">BookMate</h1>
+          <p className="text-muted-foreground text-sm mt-1">Tu Compañero de Libros</p>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-center">
+              {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isRegister && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Nombre</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Tu nombre (opcional)"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Email</label>
+                <div className="relative">
+                  <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9"
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Contraseña</label>
+                <div className="relative">
+                  <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9 pr-9"
+                    autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <EyeIcon className="size-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2"
+                >
+                  {error}
+                </motion.p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                ) : null}
+                {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center pb-4">
+            <button
+              onClick={() => { setIsRegister(!isRegister); setError('') }}
+              className="text-sm text-primary hover:underline"
+            >
+              {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+            </button>
+          </CardFooter>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          Al registrarte aceptas nuestros términos de servicio
+        </p>
+      </motion.div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
 const AMBIENT_SOUNDS = [
@@ -158,6 +338,7 @@ function darkenHex(hex: string, amount = 0.3): string {
 // Main Page Component
 // ──────────────────────────────────────────────
 export default function Home() {
+  const { data: session, status: authStatus } = useSession()
   const {
     activeTab,
     setActiveTab,
@@ -168,6 +349,21 @@ export default function Home() {
   const { setTheme } = useTheme()
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  // Handle checkout success/cancel from Stripe redirect
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'success') {
+      // Clean URL
+      window.history.replaceState({}, '/', '/')
+      // Force session refresh to get updated plan
+      // The session will automatically update via NextAuth
+    }
+    if (params.get('checkout') === 'cancel') {
+      window.history.replaceState({}, '/', '/')
+    }
+  }, [])
 
   // Capture the beforeinstallprompt event
   useEffect(() => {
@@ -310,6 +506,22 @@ export default function Home() {
     { id: 'stats', label: 'Stats', icon: BarChart3 },
     { id: 'pricing', label: 'Pro', icon: Gem },
   ]
+
+  // Show login screen if not authenticated
+  if (authStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <BookMateLogo size={64} />
+          <Loader2 className="size-6 animate-spin text-primary" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <LoginScreen />
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -2200,19 +2412,28 @@ function PricingTab() {
   const [vipEmails, setVipEmails] = useState<{ id: string; email: string; createdAt: string }[]>([])
   const [newVipEmail, setNewVipEmail] = useState('')
   const [addingVip, setAddingVip] = useState(false)
-  const [currentEmail, setCurrentEmail] = useState('demo@bookmate.app')
+  const [currentEmail, setCurrentEmail] = useState(session?.user?.email || '')
 
-  // Load current user plan on mount
+  // Load current user plan from session
+  useEffect(() => {
+    if (session?.user) {
+      setUserPlan(session.user.plan || 'free')
+      setIsVip(session.user.isVip || false)
+      setCurrentEmail(session.user.email || '')
+    }
+  }, [session, setUserPlan, setIsVip])
+
+  // Also fetch fresh data from /api/auth/me for latest plan info
   useEffect(() => {
     const loadPlan = async () => {
       try {
-        const res = await fetch('/api/stats')
+        const res = await fetch('/api/auth/me')
         if (res.ok) {
           const data = await res.json()
           if (data.user) {
             setUserPlan(data.user.plan || 'free')
             setIsVip(data.user.isVip || false)
-            setCurrentEmail(data.user.email || 'demo@bookmate.app')
+            setCurrentEmail(data.user.email || '')
           }
         }
       } catch {
@@ -2241,15 +2462,52 @@ function PricingTab() {
   }, [isAdminPanelOpen])
 
   const handleSwitchPlan = useCallback(async (plan: 'free' | 'plus' | 'pro') => {
+    if (plan === 'free') {
+      // Downgrade to free - just update via API
+      setSwitchingPlan(true)
+      try {
+        const res = await fetch('/api/plan', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setUserPlan(data.plan)
+          setIsVip(data.isVip || false)
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setSwitchingPlan(false)
+      }
+      return
+    }
+
+    // For Plus or Pro — redirect to Stripe Checkout
     setSwitchingPlan(true)
     try {
-      const res = await fetch('/api/plan', {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: plan, isAnnual }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.url) {
+          // Redirect to Stripe Checkout
+          window.location.href = data.url
+          return
+        }
+      }
+      // If Stripe is not configured, fall back to direct plan switch (for testing)
+      const fallbackRes = await fetch('/api/plan', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan }),
       })
-      if (res.ok) {
-        const data = await res.json()
+      if (fallbackRes.ok) {
+        const data = await fallbackRes.json()
         setUserPlan(data.plan)
         setIsVip(data.isVip || false)
       }
@@ -2258,7 +2516,7 @@ function PricingTab() {
     } finally {
       setSwitchingPlan(false)
     }
-  }, [setUserPlan, setIsVip])
+  }, [setUserPlan, setIsVip, isAnnual])
 
   const handleAddVip = useCallback(async () => {
     if (!newVipEmail.trim()) return
@@ -2395,6 +2653,19 @@ function PricingTab() {
                 )}
               </div>
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                >
+                  <LogOut className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Cerrar sesión</TooltipContent>
+            </Tooltip>
           </div>
         </CardContent>
       </Card>
@@ -2519,7 +2790,10 @@ function PricingTab() {
                     onClick={() => handleSwitchPlan(plan.id)}
                     disabled={switchingPlan}
                   >
-                    {switchingPlan ? <Loader2 className="size-4 animate-spin" /> : 'Cambiar a este plan'}
+                    {switchingPlan ? <Loader2 className="size-4 animate-spin" /> :
+                      plan.id === 'free' ? 'Cambiar a Gratis' :
+                      `Suscribirse a ${plan.name}`
+                    }
                   </Button>
                 )}
               </CardFooter>

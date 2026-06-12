@@ -1,37 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-// PATCH /api/plan — change current user's plan (for testing)
+// PATCH /api/plan — change current user's plan (requires auth)
 export async function PATCH(req: NextRequest) {
   try {
-    const { plan, email } = await req.json()
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+
+    const { plan } = await req.json()
 
     if (!plan || !['free', 'plus', 'pro'].includes(plan)) {
-      return NextResponse.json({ error: 'Invalid plan. Use: free, plus, or pro' }, { status: 400 })
+      return NextResponse.json({ error: 'Plan inválido. Usa: free, plus, o pro' }, { status: 400 })
     }
 
-    // Find or create user
-    const userEmail = email || 'demo@bookmate.app'
-    let user = await db.user.findUnique({ where: { email: userEmail } })
-
-    if (!user) {
-      user = await db.user.create({
-        data: {
-          email: userEmail,
-          name: 'Demo User',
-          plan,
-          isAdmin: plan === 'pro',
-        },
-      })
-    } else {
-      user = await db.user.update({
-        where: { email: userEmail },
-        data: {
-          plan,
-          isVip: plan === 'pro' ? user.isVip : false,
-        },
-      })
-    }
+    const user = await db.user.update({
+      where: { id: session.user.id },
+      data: {
+        plan,
+        isVip: plan === 'pro' ? (await db.user.findUnique({ where: { id: session.user.id } }))?.isVip || false : false,
+      },
+    })
 
     return NextResponse.json({
       plan: user.plan,
@@ -39,6 +31,6 @@ export async function PATCH(req: NextRequest) {
       email: user.email,
     })
   } catch {
-    return NextResponse.json({ error: 'Failed to update plan' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al actualizar el plan' }, { status: 500 })
   }
 }

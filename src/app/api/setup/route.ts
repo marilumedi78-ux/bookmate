@@ -8,7 +8,7 @@ export async function GET() {
     if (!connectionString) {
       return NextResponse.json({ 
         success: false, 
-        error: 'No database connection string found. Check POSTGRES_URL env variable.' 
+        error: 'No database connection string found. Check DATABASE_URL env variable.' 
       }, { status: 500 })
     }
 
@@ -19,11 +19,15 @@ export async function GET() {
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
         "email" TEXT NOT NULL UNIQUE,
+        "password" TEXT,
         "name" TEXT,
         "avatarUrl" TEXT,
         "plan" TEXT NOT NULL DEFAULT 'free',
         "isVip" BOOLEAN NOT NULL DEFAULT false,
         "isAdmin" BOOLEAN NOT NULL DEFAULT false,
+        "stripeCustomerId" TEXT,
+        "stripePriceId" TEXT,
+        "stripeSubId" TEXT,
         "streakDays" INTEGER NOT NULL DEFAULT 0,
         "lastReadDate" TEXT,
         "totalReadMin" INTEGER NOT NULL DEFAULT 0,
@@ -34,6 +38,20 @@ export async function GET() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `
+
+    // Add missing columns if they don't exist (for existing databases)
+    const addColumnIfNotExists = async (table: string, column: string, type: string) => {
+      try {
+        await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS ${sql(column)} ${sql(type)}`
+      } catch {
+        // Column might already exist, ignore error
+      }
+    }
+
+    await addColumnIfNotExists('User', 'password', 'TEXT')
+    await addColumnIfNotExists('User', 'stripeCustomerId', 'TEXT')
+    await addColumnIfNotExists('User', 'stripePriceId', 'TEXT')
+    await addColumnIfNotExists('User', 'stripeSubId', 'TEXT')
 
     // 2. Books table
     await sql`
@@ -96,7 +114,7 @@ export async function GET() {
     `
 
     await sql`ALTER TABLE "achievements" DROP CONSTRAINT IF EXISTS "achievements_userId_fkey"`
-    await sql`ALTER TABLE "achievements" ADD CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    await sql`ALTER TABLE "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
 
     // 5. Reading logs table
     await sql`
@@ -125,15 +143,9 @@ export async function GET() {
       )
     `
 
-    // Create demo user
-    const existingUsers = await sql`SELECT id FROM "User" WHERE email = 'demo@bookmate.app'`
-    if (existingUsers.length === 0) {
-      await sql`INSERT INTO "User" (email, name, plan, "isVip") VALUES ('demo@bookmate.app', 'Usuario Demo', 'pro', true)`
-    }
-
     return NextResponse.json({ 
       success: true, 
-      message: 'Database tables created successfully!',
+      message: 'Database tables created/updated successfully!',
       tables: ['User', 'books', 'highlights', 'achievements', 'reading_logs', 'vip_emails']
     })
   } catch (error) {

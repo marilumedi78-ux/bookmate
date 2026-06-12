@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 // Allow up to 30 seconds for upload (large PDFs can take time)
 export const maxDuration = 30
-
-// Helper to ensure demo user exists
-async function ensureDemoUser() {
-  let user = await db.user.findUnique({ where: { email: 'demo@bookmate.app' } })
-  if (!user) {
-    user = await db.user.create({
-      data: { email: 'demo@bookmate.app', name: 'Usuario Demo', plan: 'pro', isVip: true }
-    })
-  }
-  return user
-}
 
 // Generate a random cover color
 function randomCoverColor(): string {
@@ -28,6 +19,12 @@ function randomCoverColor(): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
+
     const body = await request.json()
     const { title, author, fileName, fileHash, text, totalPages, force } = body
 
@@ -38,8 +35,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await ensureDemoUser()
-
     // Estimate reading time (avg 250 words per minute in Spanish)
     const wordCount = text.split(/\s+/).length
     const estimatedMin = Math.max(1, Math.round(wordCount / 250))
@@ -47,7 +42,7 @@ export async function POST(request: NextRequest) {
     // Duplicate detection - only by file hash (precise, no false positives)
     if (!force && fileHash) {
       const existingByHash = await db.book.findFirst({
-        where: { userId: user.id, fileHash }
+        where: { userId, fileHash }
       })
       if (existingByHash) {
         return NextResponse.json({
@@ -66,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Create the book
     const book = await db.book.create({
       data: {
-        userId: user.id,
+        userId,
         title,
         author: author || 'Desconocido',
         fileName: fileName || 'unknown.pdf',

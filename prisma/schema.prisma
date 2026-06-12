@@ -3,19 +3,22 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
+  password      String?  // hashed password for credentials auth
   name          String?
   avatarUrl     String?
   plan          String   @default("free") // free, plus, pro
   isVip         Boolean  @default(false)
   isAdmin       Boolean  @default(false)
+  stripeCustomerId String? // Stripe customer ID
+  stripePriceId    String? // Current Stripe price ID
+  stripeSubId      String? // Current Stripe subscription ID
   streakDays    Int      @default(0)
   lastReadDate  String?  // YYYY-MM-DD
   totalReadMin  Int      @default(0)
@@ -47,10 +50,10 @@ model Book {
   estimatedMin   Int       @default(0) // estimated reading time in minutes
   isFinished     Boolean   @default(false)
   language       String    @default("es")
-  textContent    String?   // extracted text stored in DB instead of file
+  textContent    String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  user           User      @relation(fields: [userId], references: [id])
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   highlights     Highlight[]
   readingLogs    ReadingLog[]
 
@@ -67,8 +70,8 @@ model Highlight {
   charStart Int
   charEnd   Int
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  book      Book     @relation(fields: [bookId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@map("highlights")
 }
@@ -78,7 +81,7 @@ model Achievement {
   userId    String
   type      String   // "first_book", "10_books", "100_hours", "streak_7", etc.
   unlockedAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type])
   @@map("achievements")
@@ -91,8 +94,8 @@ model ReadingLog {
   minutes   Int      @default(0)
   date      String   // YYYY-MM-DD
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  book      Book     @relation(fields: [bookId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@map("reading_logs")
 }

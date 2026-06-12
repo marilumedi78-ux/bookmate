@@ -1,26 +1,27 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { format, subDays, startOfWeek, endOfWeek, parseISO } from 'date-fns'
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-
-// Helper to ensure demo user exists
-async function ensureDemoUser() {
-  let user = await db.user.findUnique({ where: { email: 'demo@bookmate.app' } })
-  if (!user) {
-    user = await db.user.create({
-      data: { email: 'demo@bookmate.app', name: 'Usuario Demo', plan: 'pro', isVip: true }
-    })
-  }
-  return user
-}
 
 export async function GET() {
   try {
-    const user = await ensureDemoUser()
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
+
+    // Get the user from DB for streak and other DB-only fields
+    const user = await db.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    }
 
     // Get all books for the user
     const books = await db.book.findMany({
-      where: { userId: user.id }
+      where: { userId }
     })
 
     const totalBooks = books.length
@@ -34,7 +35,7 @@ export async function GET() {
 
     // Calculate best streak from reading logs
     const readingLogs = await db.readingLog.findMany({
-      where: { userId: user.id },
+      where: { userId },
       orderBy: { date: 'asc' }
     })
 
@@ -66,7 +67,7 @@ export async function GET() {
 
     const weekLogs = await db.readingLog.findMany({
       where: {
-        userId: user.id,
+        userId,
         date: {
           gte: format(weekStart, 'yyyy-MM-dd'),
           lte: format(weekEnd, 'yyyy-MM-dd'),
@@ -91,7 +92,7 @@ export async function GET() {
 
     // Get achievements
     const achievements = await db.achievement.findMany({
-      where: { userId: user.id }
+      where: { userId }
     })
 
     // Check and award new achievements
@@ -110,7 +111,7 @@ export async function GET() {
     for (const check of achievementChecks) {
       if (check.condition && !existingTypes.has(check.type)) {
         await db.achievement.create({
-          data: { userId: user.id, type: check.type }
+          data: { userId, type: check.type }
         })
         newAchievements.push(check.type)
       }
@@ -118,7 +119,7 @@ export async function GET() {
 
     // If new achievements were created, fetch the full list again
     const allAchievements = newAchievements.length > 0
-      ? await db.achievement.findMany({ where: { userId: user.id } })
+      ? await db.achievement.findMany({ where: { userId } })
       : achievements
 
     return NextResponse.json({
