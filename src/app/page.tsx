@@ -54,6 +54,7 @@ import {
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
+import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
@@ -922,6 +923,8 @@ function ReaderTab() {
     setReadingMode,
     ambientSound,
     setAmbientSound,
+    ambientVolume,
+    setAmbientVolume,
     sleepTimer,
     setSleepTimer,
     showExplica,
@@ -939,6 +942,9 @@ function ReaderTab() {
 
   // TTS engine
   const tts = useTTS()
+
+  // Ambient sound engine
+  useAmbientSound()
 
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
   const [selectedText, setSelectedText] = useState('')
@@ -1476,7 +1482,7 @@ function ReaderTab() {
                   <Volume2 className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {AMBIENT_SOUNDS.map((sound) => {
@@ -1498,6 +1504,26 @@ function ReaderTab() {
                   Silencio
                   {ambientSound === null && <Check className="size-3.5 ml-auto" />}
                 </DropdownMenuItem>
+                {ambientSound && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="size-3.5 text-muted-foreground shrink-0" />
+                        <Slider
+                          value={[ambientVolume * 100]}
+                          max={100}
+                          step={5}
+                          onValueChange={(v) => setAmbientVolume(v[0] / 100)}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground w-7 text-right">
+                          {Math.round(ambientVolume * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
