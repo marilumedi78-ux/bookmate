@@ -948,7 +948,10 @@ function ReaderTab() {
 
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
   const [selectedText, setSelectedText] = useState('')
+  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sleepEndTimeRef = useRef<number | null>(null)
 
   // Fetch highlights when book changes
   useEffect(() => {
@@ -1022,6 +1025,51 @@ function ReaderTab() {
       activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [currentCharIndex, isPlaying])
+
+  // Sleep Timer: stop TTS after X minutes
+  useEffect(() => {
+    if (sleepTimerRef.current) {
+      clearInterval(sleepTimerRef.current)
+      sleepTimerRef.current = null
+    }
+
+    if (sleepTimer === null || sleepTimer === -1) {
+      setSleepTimeLeft(null)
+      sleepEndTimeRef.current = null
+      return
+    }
+
+    // Set end time
+    const endTime = Date.now() + sleepTimer * 60 * 1000
+    sleepEndTimeRef.current = endTime
+    setSleepTimeLeft(sleepTimer * 60) // seconds left
+
+    sleepTimerRef.current = setInterval(() => {
+      const now = Date.now()
+      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
+      setSleepTimeLeft(remaining)
+
+      if (remaining <= 0) {
+        // Time's up - stop TTS and ambient sound
+        if (sleepTimerRef.current) {
+          clearInterval(sleepTimerRef.current)
+          sleepTimerRef.current = null
+        }
+        tts.pause()
+        setAmbientSound(null)
+        setSleepTimer(null)
+        setSleepTimeLeft(null)
+        sleepEndTimeRef.current = null
+      }
+    }, 1000)
+
+    return () => {
+      if (sleepTimerRef.current) {
+        clearInterval(sleepTimerRef.current)
+        sleepTimerRef.current = null
+      }
+    }
+  }, [sleepTimer, tts, setAmbientSound, setSleepTimer])
 
   // Check if speech synthesis is available and has voices
   const [hasVoices, setHasVoices] = useState(false)
@@ -1247,6 +1295,16 @@ function ReaderTab() {
         </div>
       )}
 
+      {/* Sleep Timer indicator */}
+      {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
+        <div className="px-4 py-1.5 bg-primary/5 border-b flex items-center gap-2 shrink-0">
+          <Timer className="size-3.5 text-primary" />
+          <span className="text-xs text-primary font-medium">
+            Durmiendo en {Math.floor(sleepTimeLeft / 60)}:{(sleepTimeLeft % 60).toString().padStart(2, '0')}
+          </span>
+        </div>
+      )}
+
       {/* TTS Error */}
       {tts.ttsStatus === 'error' && tts.ttsError && (
         <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2 shrink-0">
@@ -1288,9 +1346,27 @@ function ReaderTab() {
               <Skeleton key={i} className="h-4 w-full" />
             ))}
           </div>
+        ) : readingMode === 'audio' ? (
+          /* Audio-only mode: show minimal info, no text */
+          <div className="flex flex-col items-center justify-center py-20 text-center max-w-2xl mx-auto">
+            <Headphones className="size-16 text-primary/30 mb-6" />
+            <p className="text-muted-foreground text-lg font-medium mb-2">Modo audio</p>
+            <p className="text-muted-foreground/70 text-sm mb-8">
+              Toca play para escuchar{currentBook ? ` "${currentBook.title}"` : ''}
+            </p>
+            {currentBook && (
+              <div className="text-center space-y-1">
+                <p className="text-foreground font-medium">{currentBook.title}</p>
+                <p className="text-sm text-muted-foreground">{currentBook.author}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {Math.floor(progressPercent)}% completado
+                </p>
+              </div>
+            )}
+          </div>
         ) : (
           <div
-            className="text-base leading-relaxed text-foreground/90 max-w-2xl mx-auto select-text pb-40"
+            className={`text-base leading-relaxed max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
             onMouseUp={handleTextSelect}
             onTouchEnd={handleTextSelect}
           >
@@ -1306,7 +1382,7 @@ function ReaderTab() {
       >
         <div className="max-w-2xl mx-auto">
           {/* Selection actions */}
-          {selectedText && (
+          {selectedText && readingMode !== 'audio' && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1340,7 +1416,103 @@ function ReaderTab() {
             </div>
           )}
 
-          {/* Player bar */}
+          {/* Visual mode: simplified controls (no TTS player) */}
+          {readingMode === 'visual' && (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="size-8">
+                      <ReadingModeIcon className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuLabel>Modo de lectura</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setReadingMode('visual')}>
+                      <Eye className="size-4 mr-2" />
+                      Visual
+                      {readingMode === 'visual' && <Check className="size-3.5 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setReadingMode('audio')}>
+                      <Ear className="size-4 mr-2" />
+                      Audio
+                      {readingMode === 'audio' && <Check className="size-3.5 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setReadingMode('both')}>
+                      <Layers className="size-4 mr-2" />
+                      Ambos
+                      {readingMode === 'both' && <Check className="size-3.5 ml-auto" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {Math.floor(progressPercent)}% leído
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`size-8 ${ambientSound ? 'text-primary' : ''}`}
+                    >
+                      <Volume2 className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {AMBIENT_SOUNDS.map((sound) => {
+                      const SoundIcon = sound.icon
+                      return (
+                        <DropdownMenuItem
+                          key={sound.id}
+                          onClick={() => setAmbientSound(sound.id)}
+                          className={ambientSound === sound.id ? 'bg-primary/10' : ''}
+                        >
+                          <SoundIcon className="size-4 mr-2" />
+                          {sound.name}
+                          {ambientSound === sound.id && <Check className="size-3.5 ml-auto" />}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setAmbientSound(null)}>
+                      Silencio
+                      {ambientSound === null && <Check className="size-3.5 ml-auto" />}
+                    </DropdownMenuItem>
+                    {ambientSound && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <div className="px-2 py-2">
+                          <div className="flex items-center gap-2">
+                            <Volume2 className="size-3.5 text-muted-foreground shrink-0" />
+                            <Slider
+                              value={[ambientVolume * 100]}
+                              max={100}
+                              step={5}
+                              onValueChange={(v) => setAmbientVolume(v[0] / 100)}
+                              className="flex-1"
+                            />
+                            <span className="text-xs text-muted-foreground w-7 text-right">
+                              {Math.round(ambientVolume * 100)}%
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          )}
+
+          {/* Audio/Both mode: full player controls */}
+          {readingMode !== 'visual' && (
           <div className="px-4 py-3 space-y-2">
         {/* Progress slider */}
         <div className="flex items-center gap-3">
@@ -1445,8 +1617,19 @@ function ReaderTab() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Temporizador</DropdownMenuLabel>
+                <DropdownMenuLabel>Temporizador de sueño</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
+                  <>
+                    <div className="px-2 py-2 text-center">
+                      <span className="text-lg font-mono font-bold text-primary">
+                        {Math.floor(sleepTimeLeft / 60)}:{(sleepTimeLeft % 60).toString().padStart(2, '0')}
+                      </span>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">restantes</p>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 {SLEEP_OPTIONS.map((min) => (
                   <DropdownMenuItem
                     key={min}
@@ -1537,7 +1720,8 @@ function ReaderTab() {
             </Button>
           </div>
         </div>
-      </div>
+        </div>
+          )}
         </div>
       </div>
 
@@ -1552,13 +1736,25 @@ function ReaderTab() {
           </SheetHeader>
 
           <div className="flex-1 px-4 py-4 space-y-4">
-            {/* Selected text */}
-            {(explicaText || selectedText) && (
+            {/* Text input - show selected text or allow manual input */}
+            {(explicaText || selectedText) ? (
               <div className="bg-muted rounded-lg p-3">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Texto seleccionado:</p>
                 <p className="text-sm text-foreground italic">
                   &ldquo;{explicaText || selectedText}&rdquo;
                 </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Selecciona texto en el libro o escríbelo aquí:
+                </p>
+                <textarea
+                  className="w-full h-28 rounded-lg border bg-background p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="Pega o escribe el texto que quieres entender..."
+                  value={explicaText}
+                  onChange={(e) => setExplicaText(e.target.value)}
+                />
               </div>
             )}
 
@@ -1566,13 +1762,14 @@ function ReaderTab() {
             <div className="space-y-2">
               {EXPLICA_OPTIONS.map((option) => {
                 const OptionIcon = option.icon
+                const hasText = !!(explicaText || selectedText)
                 return (
                   <Button
                     key={option.id}
                     variant="outline"
                     className="w-full justify-start text-left"
                     onClick={() => handleExplicaOption(option)}
-                    disabled={isExplaining}
+                    disabled={isExplaining || !hasText}
                   >
                     <OptionIcon className="size-4 mr-2 shrink-0" />
                     {option.label}
@@ -1988,9 +2185,9 @@ function PricingTab() {
       price: '$0',
       period: '',
       features: [
-        '3 libros máximo',
-        'Voz Google TTS',
-        'Lectura visual ilimitada',
+        'Google TTS',
+        '5 subrayados por libro',
+        'Racha de lectura',
         '5 Explica/mes',
         'Velocidad 1x',
       ],
@@ -1998,30 +2195,32 @@ function PricingTab() {
     {
       id: 'plus' as const,
       name: 'Plus',
-      price: isAnnual ? '$9.99' : '$12.99',
+      price: isAnnual ? '$99.99' : '$12.99',
       period: isAnnual ? '/año' : '/mes',
+      annualMonthly: '$8.33/mes',
       popular: true,
       features: [
-        'Libros ilimitados',
-        'Voz OpenAI TTS',
-        'Todos los sonidos ambientales',
-        '50 Explica/mes',
-        'Velocidad hasta 2x',
+        '15 hrs voz IA/mes',
+        'Sonidos ambientales',
+        '10 Explica/mes',
         'Subrayados ilimitados',
+        'Modo dormir',
+        'Temas y logros',
       ],
     },
     {
       id: 'pro' as const,
       name: 'Pro',
-      price: isAnnual ? '$14.99' : '$17.99',
+      price: isAnnual ? '$129.99' : '$17.99',
       period: isAnnual ? '/año' : '/mes',
+      annualMonthly: '$10.83/mes',
       features: [
         'Todo de Plus',
-        'OCR Scanner (cámara)',
-        'Explica ilimitado',
-        'Prioridad en nuevas funciones',
-        'Soporte prioritario',
-        'Exportar notas',
+        '25 hrs voz IA/mes',
+        'Explica ilimitado + en voz alta',
+        'Resumen IA',
+        'OCR escáner (1 libro/mes)',
+        '"Tu Año en Libros" anticipado',
       ],
     },
   ]
@@ -2124,7 +2323,7 @@ function PricingTab() {
         </button>
         <span className={`text-sm ${isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
           Anual
-          <Badge className="ml-1.5 bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">-23%</Badge>
+          <Badge className="ml-1.5 bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">Ahorra 36%</Badge>
         </span>
       </div>
 
@@ -2154,6 +2353,9 @@ function PricingTab() {
                   <span className="text-2xl font-bold text-foreground">{plan.price}</span>
                   {plan.period && (
                     <span className="text-muted-foreground text-sm">{plan.period}</span>
+                  )}
+                  {'annualMonthly' in plan && plan.annualMonthly && isAnnual && (
+                    <span className="text-primary text-sm font-medium ml-2">{plan.annualMonthly}</span>
                   )}
                 </CardDescription>
               </CardHeader>
