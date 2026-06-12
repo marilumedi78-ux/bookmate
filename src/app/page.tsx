@@ -2307,24 +2307,31 @@ function PricingTab() {
         <p className="text-muted-foreground text-sm">Desbloquea el potencial completo de BookMate</p>
       </div>
 
-      {/* Annual toggle */}
-      <div className="flex items-center justify-center gap-3 mb-6">
-        <span className={`text-sm ${!isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-          Mensual
-        </span>
-        <button
-          onClick={() => setIsAnnual(!isAnnual)}
-          className={`relative w-11 h-6 rounded-full transition-colors ${isAnnual ? 'bg-primary' : 'bg-muted'}`}
-          aria-label={isAnnual ? 'Cambiar a mensual' : 'Cambiar a anual'}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform ${isAnnual ? 'translate-x-5' : ''}`}
-          />
-        </button>
-        <span className={`text-sm ${isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-          Anual
-          <Badge className="ml-1.5 bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">Ahorra 36%</Badge>
-        </span>
+      {/* Annual toggle - Segmented Control */}
+      <div className="flex items-center justify-center mb-6">
+        <div className="inline-flex bg-muted rounded-lg p-1 gap-1">
+          <button
+            onClick={() => setIsAnnual(false)}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+              !isAnnual
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Mensual
+          </button>
+          <button
+            onClick={() => setIsAnnual(true)}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+              isAnnual
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Anual
+            <Badge className="bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">-36%</Badge>
+          </button>
+        </div>
       </div>
 
       {/* Plan cards */}
