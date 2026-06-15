@@ -34,6 +34,7 @@ export async function GET() {
         "iaHoursUsed" DOUBLE PRECISION NOT NULL DEFAULT 0,
         "explicaUsed" INTEGER NOT NULL DEFAULT 0,
         "ocrUsed" INTEGER NOT NULL DEFAULT 0,
+        "usageMonth" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -48,15 +49,20 @@ export async function GET() {
       }
     }
 
+    // Ensure all User columns exist (for databases created with older schema versions)
     await addColumnIfNotExists('User', 'password', 'TEXT')
+    await addColumnIfNotExists('User', 'avatarUrl', 'TEXT')
+    await addColumnIfNotExists('User', 'isAdmin', 'BOOLEAN DEFAULT false')
     await addColumnIfNotExists('User', 'lsCustomerId', 'TEXT')
     await addColumnIfNotExists('User', 'lsSubscriptionId', 'TEXT')
     await addColumnIfNotExists('User', 'lsVariantId', 'TEXT')
+    await addColumnIfNotExists('User', 'streakDays', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('User', 'lastReadDate', 'TEXT')
+    await addColumnIfNotExists('User', 'totalReadMin', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('User', 'iaHoursUsed', 'DOUBLE PRECISION DEFAULT 0')
+    await addColumnIfNotExists('User', 'explicaUsed', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('User', 'ocrUsed', 'INTEGER DEFAULT 0')
     await addColumnIfNotExists('User', 'usageMonth', 'TEXT')
-    // Also try to add legacy Stripe columns (for migration compat)
-    await addColumnIfNotExists('User', 'stripeCustomerId', 'TEXT')
-    await addColumnIfNotExists('User', 'stripePriceId', 'TEXT')
-    await addColumnIfNotExists('User', 'stripeSubId', 'TEXT')
 
     // 2. Books table
     await sql`
@@ -83,9 +89,22 @@ export async function GET() {
       )
     `
 
+    // Ensure books columns
+    await addColumnIfNotExists('books', 'fileHash', 'TEXT')
+    await addColumnIfNotExists('books', 'coverColor', "TEXT DEFAULT '#4DB6AC'")
+    await addColumnIfNotExists('books', 'currentCharIdx', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('books', 'readChars', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('books', 'estimatedMin', 'INTEGER DEFAULT 0')
+    await addColumnIfNotExists('books', 'language', "TEXT DEFAULT 'es'")
+    await addColumnIfNotExists('books', 'textContent', 'TEXT')
+
     // Add foreign key for books if not exists
-    await sql`ALTER TABLE "books" DROP CONSTRAINT IF EXISTS "books_userId_fkey"`
-    await sql`ALTER TABLE "books" ADD CONSTRAINT "books_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    try {
+      await sql`ALTER TABLE "books" DROP CONSTRAINT IF EXISTS "books_userId_fkey"`
+      await sql`ALTER TABLE "books" ADD CONSTRAINT "books_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch {
+      // Foreign key might already exist
+    }
 
     // 3. Highlights table
     await sql`
@@ -102,10 +121,14 @@ export async function GET() {
       )
     `
 
-    await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_userId_fkey"`
-    await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_bookId_fkey"`
-    await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    try {
+      await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_userId_fkey"`
+      await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+      await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_bookId_fkey"`
+      await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch {
+      // Foreign keys might already exist
+    }
 
     // 4. Achievements table
     await sql`
@@ -118,8 +141,12 @@ export async function GET() {
       )
     `
 
-    await sql`ALTER TABLE "achievements" DROP CONSTRAINT IF EXISTS "achievements_userId_fkey"`
-    await sql`ALTER TABLE "achievements" ADD CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    try {
+      await sql`ALTER TABLE "achievements" DROP CONSTRAINT IF EXISTS "achievements_userId_fkey"`
+      await sql`ALTER TABLE "achievements" ADD CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch {
+      // Foreign key might already exist
+    }
 
     // 5. Reading logs table
     await sql`
@@ -133,10 +160,14 @@ export async function GET() {
       )
     `
 
-    await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_userId_fkey"`
-    await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_bookId_fkey"`
-    await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    try {
+      await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_userId_fkey"`
+      await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+      await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_bookId_fkey"`
+      await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch {
+      // Foreign keys might already exist
+    }
 
     // 6. VIP emails table
     await sql`
