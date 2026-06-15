@@ -630,7 +630,7 @@ export default function Home() {
             >
               {activeTab === 'library' && <LibraryTab />}
               {activeTab === 'reader' && <ReaderTab />}
-              {activeTab === 'stats' && <StatsTab />}
+              {activeTab === 'stats' && <StatsTab isLoggedIn={!!session?.user} />}
               {activeTab === 'pricing' && <PricingTab />}
             </motion.div>
           </AnimatePresence>
@@ -825,6 +825,10 @@ function LibraryTab() {
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}))
+          if (errorData.code === 'PLAN_LIMIT') {
+            setShowUpgradeModal('books')
+            throw new Error(errorData.error || 'Límite de libros alcanzado')
+          }
           throw new Error(errorData.error || `Error del servidor (${res.status})`)
         }
 
@@ -1473,20 +1477,13 @@ function ReaderTab() {
         if (readingMinutesAccumRef.current >= 1) {
           const minutesToSend = Math.round(readingMinutesAccumRef.current)
           readingMinutesAccumRef.current = 0
-          // Use sendBeacon for reliability on unmount
-          try {
-            const blob = new Blob([JSON.stringify({
-              bookId: currentBookIdRef.current,
-              minutes: minutesToSend,
-            })], { type: 'application/json' })
-            navigator.sendBeacon('/api/reading-logs', blob)
-          } catch {
-            fetch('/api/reading-logs', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ bookId: currentBookIdRef.current, minutes: minutesToSend }),
-            }).catch(() => {})
-          }
+          // Use fetch with keepalive for reliability on unmount (sends cookies/auth)
+          fetch('/api/reading-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: currentBookIdRef.current, minutes: minutesToSend }),
+            keepalive: true,
+          }).catch(() => {})
         }
       }
     }
@@ -2496,6 +2493,7 @@ function ReaderTab() {
                     {showUpgradeModal === 'speed' && 'Velocidades avanzadas'}
                     {showUpgradeModal === 'ia-voice' && 'Voz IA'}
                     {showUpgradeModal === 'explica' && 'Límite de Explica alcanzado'}
+                    {showUpgradeModal === 'books' && 'Límite de libros alcanzado'}
                   </p>
                 </div>
               </div>
@@ -2506,6 +2504,7 @@ function ReaderTab() {
                 {showUpgradeModal === 'speed' && 'Ajusta la velocidad de lectura entre 0.5x y 2x para ir a tu ritmo.'}
                 {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
                 {showUpgradeModal === 'explica' && 'Con Plus tienes 10 Explica/mes, y con Pro son ilimitados. Explica te ayuda a entender cualquier texto.'}
+                {showUpgradeModal === 'books' && 'Con Plus puedes tener hasta 20 libros, y con Pro son ilimitados. Sube todos los libros que quieras.'}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -2537,6 +2536,24 @@ function ReaderTab() {
 // ──────────────────────────────────────────────
 // STATS TAB
 // ──────────────────────────────────────────────
+interface PlanLimitsData {
+  plan: string
+  maxBooks: number | null
+  maxHighlightsPerBook: number | null
+  maxExplicaPerMonth: number | null
+  maxIaVoiceHoursPerMonth: number
+  canUseIAVoice: boolean
+  canUseAmbientSounds: boolean
+  canUseSleepTimer: boolean
+  canUseAllSpeeds: boolean
+}
+
+interface UsageData {
+  explicaUsed: number
+  iaHoursUsed: number
+  ocrUsed: number
+}
+
 interface StatsData {
   totalBooks: number
   finishedBooks: number
@@ -2557,14 +2574,20 @@ interface AchievementData {
   unlockedAt: string
 }
 
-function StatsTab() {
+function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
   const { streakDays, setIsVip, setUserPlan } = useBookMateStore()
   const [stats, setStats] = useState<StatsData | null>(null)
   const [achievements, setAchievements] = useState<AchievementData[]>([])
   const [newAchievements, setNewAchievements] = useState<string[]>([])
+  const [planLimits, setPlanLimits] = useState<PlanLimitsData | null>(null)
+  const [usageData, setUsageData] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
     const fetchStats = async () => {
       setLoading(true)
@@ -2575,8 +2598,11 @@ function StatsTab() {
           setStats(data.stats || null)
           setAchievements(data.achievements || [])
           setNewAchievements(data.newAchievements || [])
+          setPlanLimits(data.planLimits || null)
+          setUsageData(data.usage || null)
           if (data.stats?.isVip) setIsVip(true)
-          if (data.stats?.plan) setUserPlan(data.stats.plan as 'free' | 'plus' | 'pro')
+          if (data.planLimits?.plan) setUserPlan(data.planLimits.plan as 'free' | 'plus' | 'pro')
+          else if (data.stats?.plan) setUserPlan(data.stats.plan as 'free' | 'plus' | 'pro')
         }
       } catch {
         // silently fail
@@ -2586,7 +2612,7 @@ function StatsTab() {
     }
     fetchStats()
     return () => { cancelled = true }
-  }, [setIsVip, setUserPlan])
+  }, [setIsVip, setUserPlan, isLoggedIn])
 
   const weeklyData = stats?.weeklyData || []
   const maxMinutes = weeklyData.length > 0
@@ -2615,6 +2641,32 @@ function StatsTab() {
     { label: 'Racha Actual', value: `${stats?.streakDays ?? streakDays} días`, icon: FlameIcon },
     { label: 'Mejor Racha', value: `${stats?.bestStreak ?? 0} días`, icon: Trophy },
   ]
+
+  if (!isLoggedIn) {
+    return (
+      <div className="px-4 pt-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Tu Actividad de Lectura</h1>
+        </div>
+        <Card className="py-6">
+          <CardContent className="flex flex-col items-center text-center gap-4 py-4">
+            <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <BarChart3 className="size-8 text-primary" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-foreground">Inicia sesión para ver tus estadísticas</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Lleva un registro de tu tiempo de lectura, rachas y logros
+              </p>
+            </div>
+            <Button onClick={() => signIn('credentials', { callbackUrl: '/' })} className="mt-2">
+              Iniciar sesión
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -2774,6 +2826,122 @@ function StatsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Plan & Usage */}
+      {planLimits && (
+        <Card className="py-4">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                {planLimits.plan === 'pro' ? (
+                  <Crown className="size-5 text-primary" />
+                ) : planLimits.plan === 'plus' ? (
+                  <Gem className="size-5 text-primary" />
+                ) : (
+                  <Star className="size-5 text-muted-foreground" />
+                )}
+                Plan {planLimits.plan === 'free' ? 'Gratis' : planLimits.plan === 'plus' ? 'Plus' : 'Pro'}
+              </CardTitle>
+              {planLimits.plan === 'free' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 gap-1"
+                  onClick={() => {
+                    const pricingTab = document.querySelector('[data-tab="pricing"]') as HTMLButtonElement
+                    if (pricingTab) pricingTab.click()
+                  }}
+                >
+                  <Gem className="size-3" />
+                  Mejorar plan
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Explica usage */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Explica</span>
+              </div>
+              <span className="text-sm font-medium">
+                {usageData ? `${usageData.explicaUsed}` : '0'}
+                {planLimits.maxExplicaPerMonth ? ` de ${planLimits.maxExplicaPerMonth}` : ''}
+                {' '}usados este mes
+              </span>
+            </div>
+
+            {/* AI Voice usage */}
+            {planLimits.canUseIAVoice && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="size-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Voz IA</span>
+                </div>
+                <span className="text-sm font-medium">
+                  {usageData ? `${usageData.iaHoursUsed}` : '0'}
+                  {' de '}
+                  {planLimits.maxIaVoiceHoursPerMonth}
+                  {' '}horas este mes
+                </span>
+              </div>
+            )}
+
+            {/* Books limit */}
+            {planLimits.maxBooks !== null && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="size-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Libros</span>
+                </div>
+                <span className="text-sm font-medium">
+                  {stats?.totalBooks ?? 0} de {planLimits.maxBooks}
+                </span>
+              </div>
+            )}
+
+            {/* Highlights limit */}
+            {planLimits.maxHighlightsPerBook !== null && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookMarked className="size-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Resaltados/libro</span>
+                </div>
+                <span className="text-sm font-medium">
+                  {planLimits.maxHighlightsPerBook}
+                </span>
+              </div>
+            )}
+
+            {/* Feature flags summary */}
+            <div className="pt-2 border-t">
+              <div className="flex flex-wrap gap-2">
+                {planLimits.canUseIAVoice && (
+                  <Badge variant="secondary" className="text-[10px] gap-1">
+                    <Volume2 className="size-3" /> Voz IA
+                  </Badge>
+                )}
+                {planLimits.canUseAmbientSounds && (
+                  <Badge variant="secondary" className="text-[10px] gap-1">
+                    <Waves className="size-3" /> Sonidos
+                  </Badge>
+                )}
+                {planLimits.canUseSleepTimer && (
+                  <Badge variant="secondary" className="text-[10px] gap-1">
+                    <Timer className="size-3" /> Timer
+                  </Badge>
+                )}
+                {planLimits.canUseAllSpeeds && (
+                  <Badge variant="secondary" className="text-[10px] gap-1">
+                    <Zap className="size-3" /> Velocidades
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

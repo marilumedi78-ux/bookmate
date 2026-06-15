@@ -84,3 +84,51 @@ Stage Summary:
 - AI Voice: Free=0, Plus=15hrs/mo, Pro=25hrs/mo
 - Server returns structured 403 errors with code, used, limit, requiredPlan
 - Frontend shows appropriate upgrade modal on 403 errors
+
+---
+Task ID: 2
+Agent: Full-Stack Developer
+Task: Strengthen plan restrictions in BookMate
+
+Work Log:
+- Added `maxBooks` field to PLAN_LIMITS in plan-limits.ts: free=3, plus=20, pro=Infinity
+- Updated `/api/stats/route.ts` to include `planLimits` and `usage` in the response, using `getEffectivePlan`, `getPlanLimits`, and `ensureMonthlyUsageReset`
+- Added speed validation to `/api/tts/route.ts`: rejects speed !== 1 for free users with 403 PLAN_LIMIT error
+- Created `/api/books/upload/route.ts` with book count limit enforcement, duplicate detection (hash + metadata), and book creation
+- Updated StatsTab in page.tsx: added `PlanLimitsData` and `UsageData` interfaces, new state variables `planLimits` and `usageData`, and a "Plan & Usage" card showing plan name, Explica usage, AI Voice hours, book limit, highlights limit, and feature badges
+- Added 'books' case to the upgrade modal for when users hit the book upload limit
+- Added PLAN_LIMIT error handling in the upload flow to show the upgrade modal
+- All changes pass lint with no errors
+
+Stage Summary:
+- Book upload now enforces plan limits: Free=3 books, Plus=20 books, Pro=unlimited
+- TTS endpoint validates speed parameter: free users restricted to 1x speed
+- Stats endpoint returns planLimits and usage data for frontend display
+- StatsTab shows "Plan & Usage" section with current plan, usage stats, and "Mejorar plan" button for free users
+- Upgrade modal includes 'books' case with appropriate messaging
+
+---
+Task ID: 5
+Agent: fullstack-developer
+Task: Fix reading statistics and clean up leftover code in BookMate
+
+Work Log:
+- Fixed critical achievement type mismatch in `/api/stats/route.ts`: changed underscore types to hyphenated types to match frontend
+  - `first_book` → `first-book`
+  - `10_books` → `ten-books`
+  - `100_hours` → `hundred-hours`
+  - `streak_7` → `streak-7`
+  - `streak_30` → `streak-30`
+  - `finish_first` → `finisher`
+- Deleted leftover `/src/app/api/stripe/` directory (checkout + webhook routes referencing removed Stripe fields)
+- Added login-required state to StatsTab: when not authenticated, shows a friendly card prompting login instead of 0s
+  - StatsTab now accepts `isLoggedIn` prop from parent component
+  - Parent passes `!!session?.user` to StatsTab
+- Fixed sendBeacon auth issue: replaced `navigator.sendBeacon()` with `fetch({ keepalive: true })` to ensure cookies/auth headers are sent on page close
+- Ran `bun run lint` — all checks pass
+
+Stage Summary:
+- Achievements now correctly match between backend and frontend (hyphenated types)
+- Removed dead Stripe code that referenced non-existent Prisma fields
+- Unauthenticated users see a login prompt instead of misleading 0 stats
+- Reading logs are properly sent with auth on page close via fetch+keepalive

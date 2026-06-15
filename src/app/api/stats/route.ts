@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { getEffectivePlan, getPlanLimits, ensureMonthlyUsageReset } from '@/lib/plan-limits'
 
 export async function GET() {
   try {
@@ -101,12 +102,12 @@ export async function GET() {
     const existingTypes = new Set(achievements.map(a => a.type))
 
     const achievementChecks = [
-      { type: 'first_book', condition: totalBooks >= 1 },
-      { type: '10_books', condition: totalBooks >= 10 },
-      { type: '100_hours', condition: totalHours >= 100 },
-      { type: 'streak_7', condition: streakDays >= 7 },
-      { type: 'streak_30', condition: streakDays >= 30 },
-      { type: 'finish_first', condition: finishedBooks >= 1 },
+      { type: 'first-book', condition: totalBooks >= 1 },
+      { type: 'ten-books', condition: totalBooks >= 10 },
+      { type: 'hundred-hours', condition: totalHours >= 100 },
+      { type: 'streak-7', condition: streakDays >= 7 },
+      { type: 'streak-30', condition: streakDays >= 30 },
+      { type: 'finisher', condition: finishedBooks >= 1 },
     ]
 
     for (const check of achievementChecks) {
@@ -122,6 +123,10 @@ export async function GET() {
     const allAchievements = newAchievements.length > 0
       ? await db.achievement.findMany({ where: { userId } })
       : achievements
+
+    const effectivePlan = getEffectivePlan(user.plan, user.isVip)
+    const limits = getPlanLimits(effectivePlan)
+    const usage = await ensureMonthlyUsageReset(userId)
 
     return NextResponse.json({
       user: {
@@ -140,6 +145,22 @@ export async function GET() {
         weeklyData,
         plan: user.plan,
         isVip: user.isVip,
+      },
+      planLimits: {
+        plan: effectivePlan,
+        maxBooks: limits.maxBooks === Infinity ? null : limits.maxBooks,
+        maxHighlightsPerBook: limits.maxHighlightsPerBook === Infinity ? null : limits.maxHighlightsPerBook,
+        maxExplicaPerMonth: limits.maxExplicaPerMonth === Infinity ? null : limits.maxExplicaPerMonth,
+        maxIaVoiceHoursPerMonth: limits.maxIaVoiceHoursPerMonth,
+        canUseIAVoice: limits.canUseIAVoice,
+        canUseAmbientSounds: limits.canUseAmbientSounds,
+        canUseSleepTimer: limits.canUseSleepTimer,
+        canUseAllSpeeds: limits.canUseAllSpeeds,
+      },
+      usage: {
+        explicaUsed: usage.explicaUsed,
+        iaHoursUsed: Math.round(usage.iaHoursUsed * 100) / 100,
+        ocrUsed: usage.ocrUsed,
       },
       achievements: allAchievements,
       newAchievements,

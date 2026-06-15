@@ -48,7 +48,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { text } = await request.json()
+    const { text, speed } = await request.json()
+
+    // Check speed restriction: free users can only use speed 1.0
+    if (speed && speed !== 1 && !limits.canUseAllSpeeds) {
+      return NextResponse.json(
+        { error: 'Velocidades avanzadas requieren plan Plus o Pro', code: 'PLAN_LIMIT', requiredPlan: 'plus' },
+        { status: 403 }
+      )
+    }
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json({ error: 'Se requiere texto para generar audio' }, { status: 400 })

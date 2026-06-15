@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 // Plan limits configuration
 export const PLAN_LIMITS = {
   free: {
+    maxBooks: 3,
     maxHighlightsPerBook: 5,
     maxExplicaPerMonth: 5,
     maxIaVoiceHoursPerMonth: 0,
@@ -15,6 +16,7 @@ export const PLAN_LIMITS = {
     canUseOCR: false,
   },
   plus: {
+    maxBooks: 20,
     maxHighlightsPerBook: Infinity,
     maxExplicaPerMonth: 10,
     maxIaVoiceHoursPerMonth: 15,
@@ -26,6 +28,7 @@ export const PLAN_LIMITS = {
     canUseOCR: false,
   },
   pro: {
+    maxBooks: Infinity,
     maxHighlightsPerBook: Infinity,
     maxExplicaPerMonth: Infinity,
     maxIaVoiceHoursPerMonth: 25,
