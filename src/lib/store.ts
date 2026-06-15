@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export type TabType = 'library' | 'reader' | 'stats' | 'pricing'
 export type ReadingMode = 'visual' | 'audio' | 'both'
+export type VoiceMode = 'browser' | 'ai' // browser = Web Speech API, ai = server TTS
 
 export interface BookItem {
   id: string
@@ -72,6 +73,10 @@ interface BookMateState {
   setAmbientSound: (sound: string | null) => void
   ambientVolume: number
   setAmbientVolume: (vol: number) => void
+
+  // Voice mode (browser TTS vs AI TTS)
+  voiceMode: VoiceMode
+  setVoiceMode: (mode: VoiceMode) => void
 
   // Sleep timer
   sleepTimer: number | null
@@ -154,6 +159,10 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   setAmbientSound: (sound) => set({ ambientSound: sound }),
   ambientVolume: 0.5,
   setAmbientVolume: (vol) => set({ ambientVolume: vol }),
+
+  // Voice mode
+  voiceMode: 'browser',
+  setVoiceMode: (mode) => set({ voiceMode: mode }),
 
   // Sleep timer
   sleepTimer: null,

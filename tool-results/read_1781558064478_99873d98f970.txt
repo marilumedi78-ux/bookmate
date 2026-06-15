@@ -1,0 +1,2002 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import { useTheme } from 'next-themes'
+     6→     6→import { useSession, signIn, signOut } from 'next-auth/react'
+     7→     7→import {
+     8→     8→  BookOpen,
+     9→     9→  Headphones,
+    10→    10→  BarChart3,
+    11→    11→  Gem,
+    12→    12→  Sun,
+    13→    13→  Moon,
+    14→    14→  Plus,
+    15→    15→  Search,
+    16→    16→  Check,
+    17→    17→  Clock,
+    18→    18→  Play,
+    19→    19→  Pause,
+    20→    20→  SkipForward,
+    21→    21→  SkipBack,
+    22→    22→  Sparkles,
+    23→    23→  Volume2,
+    24→    24→  CloudRain,
+    25→    25→  Coffee,
+    26→    26→  Flame,
+    27→    27→  Waves,
+    28→    28→  TreePine,
+    29→    29→  Timer,
+    30→    30→  Eye,
+    31→    31→  Ear,
+    32→    32→  Layers,
+    33→    33→  ChevronRight,
+    34→    34→  X,
+    35→    35→  BookMarked,
+    36→    36→  Flame as FlameIcon,
+    37→    37→  Trophy,
+    38→    38→  Zap,
+    39→    39→  Globe,
+    40→    40→  Star,
+    41→    41→  CheckCircle2,
+    42→    42→  Lock,
+    43→    43→  Crown,
+    44→    44→  Trash2,
+    45→    45→  Loader2,
+    46→    46→  AlertTriangle,
+    47→    47→  User,
+    48→    48→  Settings,
+    49→    49→  Mail,
+    50→    50→  Shield,
+    51→    51→  Copy,
+    52→    52→  LayoutGrid,
+    53→    53→  Users,
+    54→    54→  RefreshCw,
+    55→    55→  Download,
+    56→    56→  LogOut,
+    57→    57→  Mail as MailIcon,
+    58→    58→  Lock as LockIcon,
+    59→    59→  Eye as EyeIcon,
+    60→    60→  EyeOff,
+    61→    61→} from 'lucide-react'
+    62→    62→
+    63→    63→import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
+    64→    64→import { useTTS } from '@/lib/use-tts'
+    65→    65→import { useAmbientSound } from '@/lib/use-ambient-sound'
+    66→    66→import { BookMateLogo } from '@/components/bookmate-logo'
+    67→    67→import { Button } from '@/components/ui/button'
+    68→    68→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
+    69→    69→import { Input } from '@/components/ui/input'
+    70→    70→import { Progress } from '@/components/ui/progress'
+    71→    71→import { Badge } from '@/components/ui/badge'
+    72→    72→import { Slider } from '@/components/ui/slider'
+    73→    73→import { ScrollArea } from '@/components/ui/scroll-area'
+    74→    74→import {
+    75→    75→  Sheet,
+    76→    76→  SheetContent,
+    77→    77→  SheetHeader,
+    78→    78→  SheetTitle,
+    79→    79→  SheetDescription,
+    80→    80→} from '@/components/ui/sheet'
+    81→    81→import {
+    82→    82→  Dialog,
+    83→    83→  DialogContent,
+    84→    84→  DialogHeader,
+    85→    85→  DialogTitle,
+    86→    86→  DialogDescription,
+    87→    87→  DialogTrigger,
+    88→    88→  DialogFooter,
+    89→    89→  DialogClose,
+    90→    90→} from '@/components/ui/dialog'
+    91→    91→import {
+    92→    92→  AlertDialog,
+    93→    93→  AlertDialogAction,
+    94→    94→  AlertDialogCancel,
+    95→    95→  AlertDialogContent,
+    96→    96→  AlertDialogDescription,
+    97→    97→  AlertDialogFooter,
+    98→    98→  AlertDialogHeader,
+    99→    99→  AlertDialogTitle,
+   100→   100→  AlertDialogTrigger,
+   101→   101→} from '@/components/ui/alert-dialog'
+   102→   102→import {
+   103→   103→  DropdownMenu,
+   104→   104→  DropdownMenuContent,
+   105→   105→  DropdownMenuItem,
+   106→   106→  DropdownMenuTrigger,
+   107→   107→  DropdownMenuLabel,
+   108→   108→  DropdownMenuSeparator,
+   109→   109→} from '@/components/ui/dropdown-menu'
+   110→   110→import {
+   111→   111→  Tooltip,
+   112→   112→  TooltipTrigger,
+   113→   113→  TooltipContent,
+   114→   114→} from '@/components/ui/tooltip'
+   115→   115→import { Skeleton } from '@/components/ui/skeleton'
+   116→   116→
+   117→   117→// ──────────────────────────────────────────────
+   118→   118→// Login / Register Screen
+   119→   119→// ──────────────────────────────────────────────
+   120→   120→function LoginScreen() {
+   121→   121→  const [isRegister, setIsRegister] = useState(false)
+   122→   122→  const [email, setEmail] = useState('')
+   123→   123→  const [password, setPassword] = useState('')
+   124→   124→  const [name, setName] = useState('')
+   125→   125→  const [showPassword, setShowPassword] = useState(false)
+   126→   126→  const [error, setError] = useState('')
+   127→   127→  const [loading, setLoading] = useState(false)
+   128→   128→
+   129→   129→  const handleSubmit = async (e: React.FormEvent) => {
+   130→   130→    e.preventDefault()
+   131→   131→    setError('')
+   132→   132→
+   133→   133→    if (!email.trim() || !password.trim()) {
+   134→   134→      setError('Email y contraseña son requeridos')
+   135→   135→      return
+   136→   136→    }
+   137→   137→
+   138→   138→    if (isRegister && password.length < 6) {
+   139→   139→      setError('La contraseña debe tener al menos 6 caracteres')
+   140→   140→      return
+   141→   141→    }
+   142→   142→
+   143→   143→    setLoading(true)
+   144→   144→
+   145→   145→    try {
+   146→   146→      if (isRegister) {
+   147→   147→        // Register first
+   148→   148→        const regRes = await fetch('/api/auth/register', {
+   149→   149→          method: 'POST',
+   150→   150→          headers: { 'Content-Type': 'application/json' },
+   151→   151→          body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
+   152→   152→        })
+   153→   153→        const regData = await regRes.json()
+   154→   154→
+   155→   155→        if (!regRes.ok) {
+   156→   156→          setError(regData.error || 'Error al crear la cuenta')
+   157→   157→          setLoading(false)
+   158→   158→          return
+   159→   159→        }
+   160→   160→      }
+   161→   161→
+   162→   162→      // Then sign in
+   163→   163→      const result = await signIn('credentials', {
+   164→   164→        email: email.trim(),
+   165→   165→        password,
+   166→   166→        redirect: false,
+   167→   167→      })
+   168→   168→
+   169→   169→      if (result?.error) {
+   170→   170→        setError('Email o contraseña incorrectos')
+   171→   171→      }
+   172→   172→    } catch {
+   173→   173→      setError('Error de conexión. Inténtalo de nuevo.')
+   174→   174→    } finally {
+   175→   175→      setLoading(false)
+   176→   176→    }
+   177→   177→  }
+   178→   178→
+   179→   179→  return (
+   180→   180→    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+   181→   181→      <motion.div
+   182→   182→        initial={{ opacity: 0, y: 20 }}
+   183→   183→        animate={{ opacity: 1, y: 0 }}
+   184→   184→        className="w-full max-w-sm"
+   185→   185→      >
+   186→   186→        <div className="text-center mb-8">
+   187→   187→          <div className="flex justify-center mb-4">
+   188→   188→            <BookMateLogo size={64} />
+   189→   189→          </div>
+   190→   190→          <h1 className="text-2xl font-bold text-foreground">BookMate</h1>
+   191→   191→          <p className="text-muted-foreground text-sm mt-1">Tu Compañero de Libros</p>
+   192→   192→        </div>
+   193→   193→
+   194→   194→        <Card>
+   195→   195→          <CardHeader className="pb-4">
+   196→   196→            <CardTitle className="text-lg text-center">
+   197→   197→              {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+   198→   198→            </CardTitle>
+   199→   199→          </CardHeader>
+   200→   200→          <CardContent>
+   201→   201→            <form onSubmit={handleSubmit} className="space-y-4">
+   202→   202→              {isRegister && (
+   203→   203→                <div className="space-y-1.5">
+   204→   204→                  <label className="text-sm font-medium text-foreground">Nombre</label>
+   205→   205→                  <div className="relative">
+   206→   206→                    <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   207→   207→                    <Input
+   208→   208→                      type="text"
+   209→   209→                      placeholder="Tu nombre (opcional)"
+   210→   210→                      value={name}
+   211→   211→                      onChange={(e) => setName(e.target.value)}
+   212→   212→                      className="pl-9"
+   213→   213→                    />
+   214→   214→                  </div>
+   215→   215→                </div>
+   216→   216→              )}
+   217→   217→
+   218→   218→              <div className="space-y-1.5">
+   219→   219→                <label className="text-sm font-medium text-foreground">Email</label>
+   220→   220→                <div className="relative">
+   221→   221→                  <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   222→   222→                  <Input
+   223→   223→                    type="email"
+   224→   224→                    placeholder="tu@email.com"
+   225→   225→                    value={email}
+   226→   226→                    onChange={(e) => setEmail(e.target.value)}
+   227→   227→                    className="pl-9"
+   228→   228→                    autoComplete="email"
+   229→   229→                  />
+   230→   230→                </div>
+   231→   231→              </div>
+   232→   232→
+   233→   233→              <div className="space-y-1.5">
+   234→   234→                <label className="text-sm font-medium text-foreground">Contraseña</label>
+   235→   235→                <div className="relative">
+   236→   236→                  <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   237→   237→                  <Input
+   238→   238→                    type={showPassword ? 'text' : 'password'}
+   239→   239→                    placeholder="••••••••"
+   240→   240→                    value={password}
+   241→   241→                    onChange={(e) => setPassword(e.target.value)}
+   242→   242→                    className="pl-9 pr-9"
+   243→   243→                    autoComplete={isRegister ? 'new-password' : 'current-password'}
+   244→   244→                  />
+   245→   245→                  <button
+   246→   246→                    type="button"
+   247→   247→                    onClick={() => setShowPassword(!showPassword)}
+   248→   248→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+   249→   249→                  >
+   250→   250→                    {showPassword ? <EyeOff className="size-4" /> : <EyeIcon className="size-4" />}
+   251→   251→                  </button>
+   252→   252→                </div>
+   253→   253→              </div>
+   254→   254→
+   255→   255→              {error && (
+   256→   256→                <motion.p
+   257→   257→                  initial={{ opacity: 0 }}
+   258→   258→                  animate={{ opacity: 1 }}
+   259→   259→                  className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2"
+   260→   260→                >
+   261→   261→                  {error}
+   262→   262→                </motion.p>
+   263→   263→              )}
+   264→   264→
+   265→   265→              <Button type="submit" className="w-full" disabled={loading}>
+   266→   266→                {loading ? (
+   267→   267→                  <Loader2 className="size-4 animate-spin mr-2" />
+   268→   268→                ) : null}
+   269→   269→                {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+   270→   270→              </Button>
+   271→   271→            </form>
+   272→   272→          </CardContent>
+   273→   273→          <CardFooter className="justify-center pb-4">
+   274→   274→            <button
+   275→   275→              onClick={() => { setIsRegister(!isRegister); setError('') }}
+   276→   276→              className="text-sm text-primary hover:underline"
+   277→   277→            >
+   278→   278→              {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+   279→   279→            </button>
+   280→   280→          </CardFooter>
+   281→   281→        </Card>
+   282→   282→
+   283→   283→        <p className="text-center text-xs text-muted-foreground mt-4">
+   284→   284→          Al registrarte aceptas nuestros términos de servicio
+   285→   285→        </p>
+   286→   286→      </motion.div>
+   287→   287→    </div>
+   288→   288→  )
+   289→   289→}
+   290→   290→
+   291→   291→// ──────────────────────────────────────────────
+   292→   292→// Constants
+   293→   293→// ──────────────────────────────────────────────
+   294→   294→const AMBIENT_SOUNDS = [
+   295→   295→  { id: 'rain', name: 'Lluvia', icon: CloudRain },
+   296→   296→  { id: 'cafe', name: 'Café', icon: Coffee },
+   297→   297→  { id: 'fire', name: 'Fogata', icon: Flame },
+   298→   298→  { id: 'waves', name: 'Olas', icon: Waves },
+   299→   299→  { id: 'forest', name: 'Bosque', icon: TreePine },
+   300→   300→]
+   301→   301→
+   302→   302→const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+   303→   303→const SPEED_OPTIONS_FREE = [1] // Free plan: only 1x speed
+   304→   304→const SLEEP_OPTIONS = [15, 30, 45, 60]
+   305→   305→
+   306→   306→const EXPLICA_OPTIONS = [
+   307→   307→  { id: 'simple', label: 'Explícamelo simple', icon: Eye, mode: 'simple' },
+   308→   308→  { id: 'kids', label: 'Como si tuviera 10 años', icon: Star, mode: 'kid10' },
+   309→   309→  { id: 'example', label: 'Dame un ejemplo', icon: Layers, mode: 'example' },
+   310→   310→  { id: 'author', label: '¿Qué quiere decir el autor?', icon: Sparkles, mode: 'author_intent' },
+   311→   311→]
+   312→   312→
+   313→   313→const ACHIEVEMENT_ICONS: Record<string, typeof BookOpen> = {
+   314→   314→  'first-book': BookMarked,
+   315→   315→  'ten-books': BookOpen,
+   316→   316→  'hundred-hours': Clock,
+   317→   317→  'streak-7': FlameIcon,
+   318→   318→  'streak-30': Trophy,
+   319→   319→  'nocturnal': Moon,
+   320→   320→  'speedster': Zap,
+   321→   321→  'explorer': Globe,
+   322→   322→  'finisher': CheckCircle2,
+   323→   323→  'bookworm': BookOpen,
+   324→   324→}
+   325→   325→
+   326→   326→// ──────────────────────────────────────────────
+   327→   327→// Helper: darken a hex color by 30%
+   328→   328→// ──────────────────────────────────────────────
+   329→   329→function darkenHex(hex: string, amount = 0.3): string {
+   330→   330→  if (!hex || !hex.startsWith('#')) return '#1a5c54'
+   331→   331→  const num = parseInt(hex.slice(1), 16)
+   332→   332→  const r = Math.max(0, Math.round(((num >> 16) & 0xff) * (1 - amount)))
+   333→   333→  const g = Math.max(0, Math.round(((num >> 8) & 0xff) * (1 - amount)))
+   334→   334→  const b = Math.max(0, Math.round((num & 0xff) * (1 - amount)))
+   335→   335→  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+   336→   336→}
+   337→   337→
+   338→   338→// ──────────────────────────────────────────────
+   339→   339→// Main Page Component
+   340→   340→// ──────────────────────────────────────────────
+   341→   341→export default function Home() {
+   342→   342→  const { data: session, status: authStatus } = useSession()
+   343→   343→  const {
+   344→   344→    activeTab,
+   345→   345→    setActiveTab,
+   346→   346→    isDarkMode,
+   347→   347→    setIsDarkMode,
+   348→   348→  } = useBookMateStore()
+   349→   349→
+   350→   350→  const { setTheme } = useTheme()
+   351→   351→  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+   352→   352→  const [showInstallBanner, setShowInstallBanner] = useState(false)
+   353→   353→
+   354→   354→  // Handle checkout success/cancel from Stripe redirect
+   355→   355→  useEffect(() => {
+   356→   356→    if (typeof window === 'undefined') return
+   357→   357→    const params = new URLSearchParams(window.location.search)
+   358→   358→    if (params.get('checkout') === 'success') {
+   359→   359→      // Clean URL
+   360→   360→      window.history.replaceState({}, '/', '/')
+   361→   361→      // Force session refresh to get updated plan
+   362→   362→      // The session will automatically update via NextAuth
+   363→   363→    }
+   364→   364→    if (params.get('checkout') === 'cancel') {
+   365→   365→      window.history.replaceState({}, '/', '/')
+   366→   366→    }
+   367→   367→  }, [])
+   368→   368→
+   369→   369→  // Capture the beforeinstallprompt event
+   370→   370→  useEffect(() => {
+   371→   371→    const handler = (e: Event) => {
+   372→   372→      e.preventDefault()
+   373→   373→      setInstallPrompt(e as BeforeInstallPromptEvent)
+   374→   374→      // Show banner after a short delay if not dismissed
+   375→   375→      const dismissed = localStorage.getItem('bookmate-install-dismissed')
+   376→   376→      if (!dismissed) {
+   377→   377→        setTimeout(() => setShowInstallBanner(true), 3000)
+   378→   378→      }
+   379→   379→    }
+   380→   380→    window.addEventListener('beforeinstallprompt', handler)
+   381→   381→    return () => window.removeEventListener('beforeinstallprompt', handler)
+   382→   382→  }, [])
+   383→   383→
+   384→   384→  const handleInstall = useCallback(async () => {
+   385→   385→    if (!installPrompt) return
+   386→   386→    installPrompt.prompt()
+   387→   387→    const { outcome } = await installPrompt.userChoice
+   388→   388→    if (outcome === 'accepted') {
+   389→   389→      setShowInstallBanner(false)
+   390→   390→    }
+   391→   391→    setInstallPrompt(null)
+   392→   392→  }, [installPrompt])
+   393→   393→
+   394→   394→  const handleDismissInstall = useCallback(() => {
+   395→   395→    setShowInstallBanner(false)
+   396→   396→    localStorage.setItem('bookmate-install-dismissed', 'true')
+   397→   397→  }, [])
+   398→   398→
+   399→   399→  // ── Update Detection ──
+   400→   400→  const [updateAvailable, setUpdateAvailable] = useState(false)
+   401→   401→  const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null)
+   402→   402→
+   403→   403→  useEffect(() => {
+   404→   404→    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+   405→   405→
+   406→   406→    // Check if there's already a waiting service worker on load
+   407→   407→    const checkExistingWorker = () => {
+   408→   408→      const reg = navigator.serviceWorker.controller
+   409→   409→      // If there's no controller, this is the first load
+   410→   410→    }
+   411→   411→
+   412→   412→    // Listen for service worker updates
+   413→   413→    navigator.serviceWorker.ready.then((registration) => {
+   414→   414→      // Check if there's already a waiting worker
+   415→   415→      if (registration.waiting) {
+   416→   416→        setNewWorker(registration.waiting)
+   417→   417→        setUpdateAvailable(true)
+   418→   418→      }
+   419→   419→
+   420→   420→      // Listen for new service workers
+   421→   421→      registration.addEventListener('updatefound', () => {
+   422→   422→        const newSW = registration.installing
+   423→   423→        if (!newSW) return
+   424→   424→
+   425→   425→        newSW.addEventListener('statechange', () => {
+   426→   426→          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+   427→   427→            // New version installed and waiting!
+   428→   428→            setNewWorker(newSW)
+   429→   429→            setUpdateAvailable(true)
+   430→   430→          }
+   431→   431→        })
+   432→   432→      })
+   433→   433→
+   434→   434→      // Periodically check for updates every 5 minutes
+   435→   435→      const interval = setInterval(() => {
+   436→   436→        registration.update().catch(() => {})
+   437→   437→      }, 5 * 60 * 1000)
+   438→   438→
+   439→   439→      return () => clearInterval(interval)
+   440→   440→    })
+   441→   441→
+   442→   442→    // Also listen for controller change (SW took over)
+   443→   443→    let refreshing = false
+   444→   444→    navigator.serviceWorker.addEventListener('controllerchange', () => {
+   445→   445→      if (refreshing) return
+   446→   446→      refreshing = true
+   447→   447→      window.location.reload()
+   448→   448→    })
+   449→   449→
+   450→   450→    checkExistingWorker()
+   451→   451→  }, [])
+   452→   452→
+   453→   453→  // Also poll the /api/version endpoint every 5 minutes to detect deploys
+   454→   454→  useEffect(() => {
+   455→   455→    if (typeof window === 'undefined') return
+   456→   456→    let currentVersion: string | null = null
+   457→   457→
+   458→   458→    const checkVersion = async () => {
+   459→   459→      try {
+   460→   460→        const res = await fetch('/api/version', { cache: 'no-store' })
+   461→   461→        if (res.ok) {
+   462→   462→          const data = await res.json()
+   463→   463→          if (!currentVersion) {
+   464→   464→            currentVersion = data.version
+   465→   465→            return
+   466→   466→          }
+   467→   467→          if (data.version !== currentVersion) {
+   468→   468→            // New version detected on server — force SW update check
+   469→   469→            if ('serviceWorker' in navigator) {
+   470→   470→              const reg = await navigator.serviceWorker.getRegistration()
+   471→   471→              if (reg) {
+   472→   472→                await reg.update()
+   473→   473→              }
+   474→   474→            }
+   475→   475→          }
+   476→   476→        }
+   477→   477→      } catch {
+   478→   478→        // Silently fail — no internet or similar
+   479→   479→      }
+   480→   480→    }
+   481→   481→
+   482→   482→    checkVersion()
+   483→   483→    const interval = setInterval(checkVersion, 5 * 60 * 1000)
+   484→   484→    return () => clearInterval(interval)
+   485→   485→  }, [])
+   486→   486→
+   487→   487→  const handleUpdate = useCallback(() => {
+   488→   488→    if (!newWorker) return
+   489→   489→    // Tell the waiting service worker to skip waiting and activate
+   490→   490→    newWorker.postMessage({ type: 'SKIP_WAITING' })
+   491→   491→    // The controllerchange event will reload the page
+   492→   492→  }, [newWorker])
+   493→   493→
+   494→   494→  const handleDismissUpdate = useCallback(() => {
+   495→   495→    setUpdateAvailable(false)
+   496→   496→  }, [])
+   497→   497→
+   498→   498→  const handleDarkToggle = useCallback(() => {
+   499→   499→    const newDark = !isDarkMode
+   500→   500→    setIsDarkMode(newDark)
+   501→   501→    setTheme(newDark ? 'dark' : 'light')
+   502→   502→  }, [isDarkMode, setIsDarkMode, setTheme])
+   503→   503→
+   504→   504→  const tabs: { id: TabType; label: string; icon: typeof BookOpen }[] = [
+   505→   505→    { id: 'library', label: 'Biblioteca', icon: BookOpen },
+   506→   506→    { id: 'reader', label: 'Lector', icon: Headphones },
+   507→   507→    { id: 'stats', label: 'Stats', icon: BarChart3 },
+   508→   508→    { id: 'pricing', label: 'Pro', icon: Gem },
+   509→   509→  ]
+   510→   510→
+   511→   511→  // Show login screen if not authenticated
+   512→   512→  // Dev bypass: skip login when ?dev=1 query param is present
+   513→   513→  const [devBypass, setDevBypass] = useState(() => {
+   514→   514→    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === '1') {
+   515→   515→      return true
+   516→   516→    }
+   517→   517→    return false
+   518→   518→  })
+   519→   519→  if (authStatus === 'loading' && !devBypass) {
+   520→   520→    return (
+   521→   521→      <div className="min-h-screen flex items-center justify-center bg-background">
+   522→   522→        <div className="flex flex-col items-center gap-4">
+   523→   523→          <BookMateLogo size={64} />
+   524→   524→          <Loader2 className="size-6 animate-spin text-primary" />
+   525→   525→        </div>
+   526→   526→      </div>
+   527→   527→    )
+   528→   528→  }
+   529→   529→
+   530→   530→  if (!session && !devBypass) {
+   531→   531→    return <LoginScreen />
+   532→   532→  }
+   533→   533→
+   534→   534→  return (
+   535→   535→    <div className="min-h-screen flex flex-col bg-background">
+   536→   536→      {/* Main app container - responsive: full width on mobile, centered on desktop */}
+   537→   537→      <div className="w-full max-w-2xl mx-auto min-h-screen flex flex-col relative">
+   538→   538→
+   539→   539→        {/* Install Banner */}
+   540→   540→        <AnimatePresence>
+   541→   541→          {showInstallBanner && (
+   542→   542→            <motion.div
+   543→   543→              initial={{ height: 0, opacity: 0 }}
+   544→   544→              animate={{ height: 'auto', opacity: 1 }}
+   545→   545→              exit={{ height: 0, opacity: 0 }}
+   546→   546→              className="overflow-hidden"
+   547→   547→            >
+   548→   548→              <div className="bg-primary/10 border-b px-4 py-3 flex items-center gap-3">
+   549→   549→                <BookMateLogo size={28} />
+   550→   550→                <div className="flex-1 min-w-0">
+   551→   551→                  <p className="text-sm font-medium text-foreground">Instalar BookMate</p>
+   552→   552→                  <p className="text-xs text-muted-foreground">Acceso rápido desde tu pantalla de inicio</p>
+   553→   553→                </div>
+   554→   554→                <Button size="sm" onClick={handleInstall} className="shrink-0">
+   555→   555→                  Instalar
+   556→   556→                </Button>
+   557→   557→                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissInstall}>
+   558→   558→                  <X className="size-3.5" />
+   559→   559→                </Button>
+   560→   560→              </div>
+   561→   561→            </motion.div>
+   562→   562→          )}
+   563→   563→        </AnimatePresence>
+   564→   564→
+   565→   565→        {/* Update Available Banner */}
+   566→   566→        <AnimatePresence>
+   567→   567→          {updateAvailable && (
+   568→   568→            <motion.div
+   569→   569→              initial={{ height: 0, opacity: 0 }}
+   570→   570→              animate={{ height: 'auto', opacity: 1 }}
+   571→   571→              exit={{ height: 0, opacity: 0 }}
+   572→   572→              className="overflow-hidden"
+   573→   573→            >
+   574→   574→              <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-3 flex items-center gap-3">
+   575→   575→                <div className="size-9 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+   576→   576→                  <RefreshCw className="size-4 text-emerald-600 dark:text-emerald-400" />
+   577→   577→                </div>
+   578→   578→                <div className="flex-1 min-w-0">
+   579→   579→                  <p className="text-sm font-medium text-foreground">Nueva versión disponible</p>
+   580→   580→                  <p className="text-xs text-muted-foreground">Actualiza para disfrutar las últimas mejoras</p>
+   581→   581→                </div>
+   582→   582→                <Button size="sm" onClick={handleUpdate} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+   583→   583→                  <Download className="size-3.5 mr-1" />
+   584→   584→                  Actualizar
+   585→   585→                </Button>
+   586→   586→                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissUpdate}>
+   587→   587→                  <X className="size-3.5" />
+   588→   588→                </Button>
+   589→   589→              </div>
+   590→   590→            </motion.div>
+   591→   591→          )}
+   592→   592→        </AnimatePresence>
+   593→   593→
+   594→   594→        {/* ── HEADER ── */}
+   595→   595→        <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
+   596→   596→          <div className="flex items-center justify-between px-4 h-14">
+   597→   597→            <div className="flex items-center gap-2">
+   598→   598→              <BookMateLogo size={32} />
+   599→   599→              <span className="font-bold text-lg text-foreground">BookMate</span>
+   600→   600→            </div>
+   601→   601→            <Tooltip>
+   602→   602→              <TooltipTrigger asChild>
+   603→   603→                <Button
+   604→   604→                  variant="ghost"
+   605→   605→                  size="icon"
+   606→   606→                  onClick={handleDarkToggle}
+   607→   607→                  aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+   608→   608→                >
+   609→   609→                  {isDarkMode ? <Sun className="size-5" /> : <Moon className="size-5" />}
+   610→   610→                </Button>
+   611→   611→              </TooltipTrigger>
+   612→   612→              <TooltipContent>
+   613→   613→                {isDarkMode ? 'Modo claro' : 'Modo oscuro'}
+   614→   614→              </TooltipContent>
+   615→   615→            </Tooltip>
+   616→   616→          </div>
+   617→   617→        </header>
+   618→   618→
+   619→   619→        {/* ── MAIN CONTENT ── */}
+   620→   620→        <main className={`flex-1 ${activeTab === 'reader' ? 'overflow-hidden' : 'pb-20 overflow-y-auto'}`}>
+   621→   621→          <AnimatePresence mode="wait">
+   622→   622→            <motion.div
+   623→   623→              key={activeTab}
+   624→   624→              initial={{ opacity: 0, y: 8 }}
+   625→   625→              animate={{ opacity: 1, y: 0 }}
+   626→   626→              exit={{ opacity: 0, y: -8 }}
+   627→   627→              transition={{ duration: 0.2 }}
+   628→   628→              className={activeTab === 'reader' ? 'h-full' : ''}
+   629→   629→            >
+   630→   630→              {activeTab === 'library' && <LibraryTab />}
+   631→   631→              {activeTab === 'reader' && <ReaderTab />}
+   632→   632→              {activeTab === 'stats' && <StatsTab />}
+   633→   633→              {activeTab === 'pricing' && <PricingTab />}
+   634→   634→            </motion.div>
+   635→   635→          </AnimatePresence>
+   636→   636→        </main>
+   637→   637→
+   638→   638→        {/* ── FOOTER / TAB NAV ── */}
+   639→   639→        <footer className="sticky bottom-0 z-50 bg-background/80 backdrop-blur-md border-t mt-auto">
+   640→   640→          <nav className="flex" aria-label="Navegación principal">
+   641→   641→            {tabs.map((tab) => {
+   642→   642→              const Icon = tab.icon
+   643→   643→              const isActive = activeTab === tab.id
+   644→   644→              return (
+   645→   645→                <button
+   646→   646→                  key={tab.id}
+   647→   647→                  onClick={() => setActiveTab(tab.id)}
+   648→   648→                  className={`flex-1 flex flex-col items-center justify-center py-2.5 transition-colors ${
+   649→   649→                    isActive
+   650→   650→                      ? 'text-primary bg-primary/10'
+   651→   651→                      : 'text-muted-foreground hover:text-foreground'
+   652→   652→                  }`}
+   653→   653→                  aria-current={isActive ? 'page' : undefined}
+   654→   654→                  aria-label={tab.label}
+   655→   655→                >
+   656→   656→                  <Icon className="size-5 mb-0.5" />
+   657→   657→                  <span className="text-[11px] font-medium">{tab.label}</span>
+   658→   658→                </button>
+   659→   659→              )
+   660→   660→            })}
+   661→   661→          </nav>
+   662→   662→        </footer>
+   663→   663→      </div>
+   664→   664→    </div>
+   665→   665→  )
+   666→   666→}
+   667→   667→
+   668→   668→// ──────────────────────────────────────────────
+   669→   669→// LIBRARY TAB
+   670→   670→// ──────────────────────────────────────────────
+   671→   671→function LibraryTab() {
+   672→   672→  const {
+   673→   673→    books,
+   674→   674→    setBooks,
+   675→   675→    addBook,
+   676→   676→    removeBook,
+   677→   677→    setCurrentBook,
+   678→   678→    setBookText,
+   679→   679→    setActiveTab,
+   680→   680→    isUploading,
+   681→   681→    setIsUploading,
+   682→   682→    duplicateInfo,
+   683→   683→    setDuplicateInfo,
+   684→   684→  } = useBookMateStore()
+   685→   685→
+   686→   686→  const [searchQuery, setSearchQuery] = useState('')
+   687→   687→  const [uploadOpen, setUploadOpen] = useState(false)
+   688→   688→  const [loadingBooks, setLoadingBooks] = useState(true)
+   689→   689→  const [deleteTarget, setDeleteTarget] = useState<BookItem | null>(null)
+   690→   690→  const [viewMode, setViewMode] = useState<'grid' | 'author'>('grid')
+   691→   691→  const [uploadError, setUploadError] = useState<string | null>(null)
+   692→   692→  const fileInputRef = useRef<HTMLInputElement>(null)
+   693→   693→
+   694→   694→  // Fetch books on mount
+   695→   695→  useEffect(() => {
+   696→   696→    let cancelled = false
+   697→   697→    const fetchBooks = async () => {
+   698→   698→      setLoadingBooks(true)
+   699→   699→      try {
+   700→   700→        const res = await fetch('/api/books')
+   701→   701→        if (res.ok && !cancelled) {
+   702→   702→          const data = await res.json()
+   703→   703→          setBooks(data.books || [])
+   704→   704→        }
+   705→   705→      } catch {
+   706→   706→        // silently fail
+   707→   707→      } finally {
+   708→   708→        if (!cancelled) setLoadingBooks(false)
+   709→   709→      }
+   710→   710→    }
+   711→   711→    fetchBooks()
+   712→   712→    return () => { cancelled = true }
+   713→   713→  }, [setBooks])
+   714→   714→
+   715→   715→  const fetchBooks = useCallback(async () => {
+   716→   716→    try {
+   717→   717→      const res = await fetch('/api/books')
+   718→   718→      if (res.ok) {
+   719→   719→        const data = await res.json()
+   720→   720→        setBooks(data.books || [])
+   721→   721→      }
+   722→   722→    } catch {
+   723→   723→      // silently fail
+   724→   724→    }
+   725→   725→  }, [setBooks])
+   726→   726→
+   727→   727→  const filteredBooks = books.filter(
+   728→   728→    (b) =>
+   729→   729→      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+   730→   730→      b.author.toLowerCase().includes(searchQuery.toLowerCase())
+   731→   731→  )
+   732→   732→
+   733→   733→  const handleOpenBook = useCallback(
+   734→   734→    async (book: BookItem) => {
+   735→   735→      setCurrentBook(book)
+   736→   736→      try {
+   737→   737→        const res = await fetch(`/api/books/${book.id}/text`)
+   738→   738→        if (res.ok) {
+   739→   739→          const data = await res.json()
+   740→   740→          setBookText(data.text || '')
+   741→   741→        } else {
+   742→   742→          setBookText('')
+   743→   743→        }
+   744→   744→      } catch {
+   745→   745→        setBookText('')
+   746→   746→      }
+   747→   747→      setActiveTab('reader')
+   748→   748→    },
+   749→   749→    [setCurrentBook, setBookText, setActiveTab]
+   750→   750→  )
+   751→   751→
+   752→   752→  const handleFileSelect = useCallback(
+   753→   753→    async (e: React.ChangeEvent<HTMLInputElement>) => {
+   754→   754→      const file = e.target.files?.[0]
+   755→   755→      if (!file) return
+   756→   756→
+   757→   757→      setIsUploading(true)
+   758→   758→      setDuplicateInfo(null)
+   759→   759→      setUploadError(null)
+   760→   760→
+   761→   761→      try {
+   762→   762→        // Load PDF.js from CDN using script tag (most compatible approach)
+   763→   763→        const loadPdfJs = (): Promise<any> => {
+   764→   764→          if ((window as any).pdfjsLib) return Promise.resolve((window as any).pdfjsLib)
+   765→   765→          return new Promise((resolve, reject) => {
+   766→   766→            const script = document.createElement('script')
+   767→   767→            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+   768→   768→            script.onload = () => {
+   769→   769→              const lib = (window as any).pdfjsLib
+   770→   770→              if (lib) {
+   771→   771→                lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+   772→   772→                resolve(lib)
+   773→   773→              } else {
+   774→   774→                reject(new Error('PDF.js no se cargó correctamente'))
+   775→   775→              }
+   776→   776→            }
+   777→   777→            script.onerror = () => reject(new Error('Error al cargar PDF.js desde CDN'))
+   778→   778→            document.head.appendChild(script)
+   779→   779→          })
+   780→   780→        }
+   781→   781→
+   782→   782→        const pdfjsLib = await loadPdfJs()
+   783→   783→        const arrayBuffer = await file.arrayBuffer()
+   784→   784→        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+   785→   785→        
+   786→   786→        // Extract text from all pages
+   787→   787→        const textParts: string[] = []
+   788→   788→        for (let i = 1; i <= pdf.numPages; i++) {
+   789→   789→          const page = await pdf.getPage(i)
+   790→   790→          const content = await page.getTextContent()
+   791→   791→          const pageText = content.items.map((item: any) => item.str).join(' ')
+   792→   792→          textParts.push(pageText)
+   793→   793→        }
+   794→   794→        const text = textParts.join('\n\n')
+   795→   795→
+   796→   796→        if (!text.trim()) {
+   797→   797→          throw new Error('No se pudo extraer texto del PDF. Puede ser un PDF escaneado (imagen).')
+   798→   798→        }
+   799→   799→
+   800→   800→        // Get PDF metadata
+   801→   801→        const metadata = await pdf.getMetadata().catch(() => null) as any
+   802→   802→        const info = metadata?.info || {}
+   803→   803→        const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
+   804→   804→        const author = info?.Author || 'Desconocido'
+   805→   805→
+   806→   806→        // Compute file hash
+   807→   807→        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+   808→   808→        const hashArray = Array.from(new Uint8Array(hashBuffer))
+   809→   809→        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+   810→   810→
+   811→   811→        // Send extracted data to API
+   812→   812→        const res = await fetch('/api/books/upload', {
+   813→   813→          method: 'POST',
+   814→   814→          headers: { 'Content-Type': 'application/json' },
+   815→   815→          body: JSON.stringify({
+   816→   816→            title,
+   817→   817→            author,
+   818→   818→            fileName: file.name,
+   819→   819→            fileHash,
+   820→   820→            text,
+   821→   821→            totalPages: pdf.numPages,
+   822→   822→          }),
+   823→   823→        })
+   824→   824→
+   825→   825→        if (!res.ok) {
+   826→   826→          const errorData = await res.json().catch(() => ({}))
+   827→   827→          throw new Error(errorData.error || `Error del servidor (${res.status})`)
+   828→   828→        }
+   829→   829→
+   830→   830→        const data = await res.json()
+   831→   831→
+   832→   832→        if (data.duplicate) {
+   833→   833→          setDuplicateInfo({
+   834→   834→            duplicate: true,
+   835→   835→            matchType: data.matchType,
+   836→   836→            existingBook: data.existingBook,
+   837→   837→            message: data.message,
+   838→   838→          })
+   839→   839→        } else {
+   840→   840→          addBook(data.book)
+   841→   841→          setUploadOpen(false)
+   842→   842→        }
+   843→   843→      } catch (err) {
+   844→   844→        console.error('Upload error:', err)
+   845→   845→        setUploadError(err instanceof Error ? err.message : 'Error al subir el PDF')
+   846→   846→      } finally {
+   847→   847→        setIsUploading(false)
+   848→   848→        if (fileInputRef.current) fileInputRef.current.value = ''
+   849→   849→      }
+   850→   850→    },
+   851→   851→    [setIsUploading, setDuplicateInfo, addBook]
+   852→   852→  )
+   853→   853→
+   854→   854→  const handleDuplicateReplace = useCallback(async () => {
+   855→   855→    if (!duplicateInfo?.existingBook) return
+   856→   856→    // Delete existing and re-upload
+   857→   857→    try {
+   858→   858→      await fetch(`/api/books/${duplicateInfo.existingBook.id}`, { method: 'DELETE' })
+   859→   859→      removeBook(duplicateInfo.existingBook.id)
+   860→   860→    } catch {
+   861→   861→      // continue
+   862→   862→    }
+   863→   863→    setDuplicateInfo(null)
+   864→   864→    setUploadOpen(false)
+   865→   865→    // Re-trigger file selection
+   866→   866→    setTimeout(() => {
+   867→   867→      fileInputRef.current?.click()
+   868→   868→    }, 300)
+   869→   869→  }, [duplicateInfo, removeBook, setDuplicateInfo])
+   870→   870→
+   871→   871→  const handleDuplicateKeepBoth = useCallback(async () => {
+   872→   872→    // Re-upload with force flag - need to re-parse the file
+   873→   873→    const fileInput = fileInputRef.current
+   874→   874→    if (!fileInput?.files?.[0]) {
+   875→   875→      setDuplicateInfo(null)
+   876→   876→      return
+   877→   877→    }
+   878→   878→
+   879→   879→    setIsUploading(true)
+   880→   880→
+   881→   881→    try {
+   882→   882→      const file = fileInput.files[0]
+   883→   883→      // Use already-loaded PDF.js from window
+   884→   884→      const pdfjsLib = (window as any).pdfjsLib
+   885→   885→      if (!pdfjsLib) throw new Error('PDF.js no disponible')
+   886→   886→
+   887→   887→      const arrayBuffer = await file.arrayBuffer()
+   888→   888→      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+   889→   889→      
+   890→   890→      const textParts: string[] = []
+   891→   891→      for (let i = 1; i <= pdf.numPages; i++) {
+   892→   892→        const page = await pdf.getPage(i)
+   893→   893→        const content = await page.getTextContent()
+   894→   894→        const pageText = content.items.map((item: any) => item.str).join(' ')
+   895→   895→        textParts.push(pageText)
+   896→   896→      }
+   897→   897→      const text = textParts.join('\n\n')
+   898→   898→
+   899→   899→      const metadata = await pdf.getMetadata().catch(() => null) as any
+   900→   900→      const info = metadata?.info || {}
+   901→   901→      const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
+   902→   902→      const author = info?.Author || 'Desconocido'
+   903→   903→
+   904→   904→      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+   905→   905→      const hashArray = Array.from(new Uint8Array(hashBuffer))
+   906→   906→      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+   907→   907→
+   908→   908→      const res = await fetch('/api/books/upload', {
+   909→   909→        method: 'POST',
+   910→   910→        headers: { 'Content-Type': 'application/json' },
+   911→   911→        body: JSON.stringify({
+   912→   912→          title,
+   913→   913→          author,
+   914→   914→          fileName: file.name,
+   915→   915→          fileHash,
+   916→   916→          text,
+   917→   917→          totalPages: pdf.numPages,
+   918→   918→          force: 'true',
+   919→   919→        }),
+   920→   920→      })
+   921→   921→      if (res.ok) {
+   922→   922→        const data = await res.json()
+   923→   923→        if (data.book) {
+   924→   924→          addBook(data.book)
+   925→   925→        }
+   926→   926→      }
+   927→   927→    } catch {
+   928→   928→      // silently fail
+   929→   929→    } finally {
+   930→   930→      setIsUploading(false)
+   931→   931→      setDuplicateInfo(null)
+   932→   932→      setUploadOpen(false)
+   933→   933→      if (fileInputRef.current) fileInputRef.current.value = ''
+   934→   934→    }
+   935→   935→  }, [setIsUploading, setDuplicateInfo, addBook])
+   936→   936→
+   937→   937→  const handleDeleteBook = useCallback(
+   938→   938→    async (book: BookItem) => {
+   939→   939→      try {
+   940→   940→        const res = await fetch(`/api/books/${book.id}`, { method: 'DELETE' })
+   941→   941→        if (res.ok) {
+   942→   942→          removeBook(book.id)
+   943→   943→        }
+   944→   944→      } catch {
+   945→   945→        // silently fail
+   946→   946→      }
+   947→   947→      setDeleteTarget(null)
+   948→   948→    },
+   949→   949→    [removeBook]
+   950→   950→  )
+   951→   951→
+   952→   952→  return (
+   953→   953→    <div className="px-4 pt-6">
+   954→   954→      {/* Header */}
+   955→   955→      <div className="mb-6">
+   956→   956→        <h1 className="text-2xl font-bold text-foreground">Mi Biblioteca</h1>
+   957→   957→        <p className="text-muted-foreground text-sm mt-1">Tus libros, tu ritmo</p>
+   958→   958→      </div>
+   959→   959→
+   960→   960→      {/* Search + View Toggle */}
+   961→   961→      <div className="flex items-center gap-2 mb-6">
+   962→   962→        <div className="relative flex-1">
+   963→   963→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   964→   964→          <Input
+   965→   965→            placeholder="Buscar libro o autor..."
+   966→   966→            value={searchQuery}
+   967→   967→            onChange={(e) => setSearchQuery(e.target.value)}
+   968→   968→            className="pl-9"
+   969→   969→          />
+   970→   970→        </div>
+   971→   971→        <Tooltip>
+   972→   972→          <TooltipTrigger asChild>
+   973→   973→            <Button
+   974→   974→              variant={viewMode === 'author' ? 'default' : 'outline'}
+   975→   975→              size="icon"
+   976→   976→              className="size-10 shrink-0"
+   977→   977→              onClick={() => setViewMode(viewMode === 'grid' ? 'author' : 'grid')}
+   978→   978→              aria-label={viewMode === 'grid' ? 'Agrupar por autor' : 'Vista de cuadrícula'}
+   979→   979→            >
+   980→   980→              {viewMode === 'grid' ? <Users className="size-4" /> : <LayoutGrid className="size-4" />}
+   981→   981→            </Button>
+   982→   982→          </TooltipTrigger>
+   983→   983→          <TooltipContent>
+   984→   984→            {viewMode === 'grid' ? 'Agrupar por autor' : 'Vista cuadrícula'}
+   985→   985→          </TooltipContent>
+   986→   986→        </Tooltip>
+   987→   987→      </div>
+   988→   988→
+   989→   989→      {/* Loading state */}
+   990→   990→      {loadingBooks && (
+   991→   991→        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+   992→   992→          {Array.from({ length: 4 }).map((_, i) => (
+   993→   993→            <Card key={i} className="overflow-hidden py-0 gap-3">
+   994→   994→              <Skeleton className="h-36 w-full" />
+   995→   995→              <div className="px-3 pb-3 space-y-2">
+   996→   996→                <Skeleton className="h-3 w-3/4" />
+   997→   997→                <Skeleton className="h-1.5 w-full" />
+   998→   998→                <Skeleton className="h-3 w-1/2" />
+   999→   999→              </div>
+  1000→  1000→            </Card>
+  1001→  1001→          ))}
+  1002→  1002→        </div>
+  1003→  1003→      )}
+  1004→  1004→
+  1005→  1005→      {/* Empty state */}
+  1006→  1006→      {!loadingBooks && filteredBooks.length === 0 && (
+  1007→  1007→        <div className="flex flex-col items-center justify-center py-20 text-center">
+  1008→  1008→          <BookOpen className="size-16 text-muted-foreground/40 mb-4" />
+  1009→  1009→          <p className="text-muted-foreground text-lg font-medium">Sube tu primer libro para empezar</p>
+  1010→  1010→          <p className="text-muted-foreground/70 text-sm mt-1">
+  1011→  1011→            Toca el botón + para agregar un PDF
+  1012→  1012→          </p>
+  1013→  1013→        </div>
+  1014→  1014→      )}
+  1015→  1015→
+  1016→  1016→      {/* Book Grid - Normal view */}
+  1017→  1017→      {!loadingBooks && viewMode === 'grid' && (
+  1018→  1018→        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+  1019→  1019→          {filteredBooks.map((book, i) => (
+  1020→  1020→            <BookCard
+  1021→  1021→              key={book.id}
+  1022→  1022→              book={book}
+  1023→  1023→              index={i}
+  1024→  1024→              onOpen={handleOpenBook}
+  1025→  1025→              onDelete={setDeleteTarget}
+  1026→  1026→            />
+  1027→  1027→          ))}
+  1028→  1028→        </div>
+  1029→  1029→      )}
+  1030→  1030→
+  1031→  1031→      {/* Book Grid - Grouped by author */}
+  1032→  1032→      {!loadingBooks && viewMode === 'author' && filteredBooks.length > 0 && (() => {
+  1033→  1033→        const grouped = filteredBooks.reduce<Record<string, BookItem[]>>((acc, book) => {
+  1034→  1034→          const author = book.author || 'Desconocido'
+  1035→  1035→          if (!acc[author]) acc[author] = []
+  1036→  1036→          acc[author].push(book)
+  1037→  1037→          return acc
+  1038→  1038→        }, {})
+  1039→  1039→        const sortedAuthors = Object.keys(grouped).sort((a, b) =>
+  1040→  1040→          a.localeCompare(b, 'es', { sensitivity: 'base' })
+  1041→  1041→        )
+  1042→  1042→        return sortedAuthors.map(author => (
+  1043→  1043→          <div key={author} className="mb-6">
+  1044→  1044→            <div className="flex items-center gap-2 mb-3">
+  1045→  1045→              <User className="size-4 text-primary" />
+  1046→  1046→              <h3 className="font-semibold text-foreground text-sm">{author}</h3>
+  1047→  1047→              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+  1048→  1048→                {grouped[author].length}
+  1049→  1049→              </Badge>
+  1050→  1050→            </div>
+  1051→  1051→            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+  1052→  1052→              {grouped[author].map((book, i) => (
+  1053→  1053→                <BookCard
+  1054→  1054→                  key={book.id}
+  1055→  1055→                  book={book}
+  1056→  1056→                  index={i}
+  1057→  1057→                  onOpen={handleOpenBook}
+  1058→  1058→                  onDelete={setDeleteTarget}
+  1059→  1059→                />
+  1060→  1060→              ))}
+  1061→  1061→            </div>
+  1062→  1062→          </div>
+  1063→  1063→        ))
+  1064→  1064→      })()}
+  1065→  1065→
+  1066→  1066→      {/* Upload FAB */}
+  1067→  1067→      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+  1068→  1068→        <DialogTrigger asChild>
+  1069→  1069→          <Button
+  1070→  1070→            className="fixed bottom-24 right-5 z-40 size-14 rounded-full shadow-lg"
+  1071→  1071→            size="icon"
+  1072→  1072→            aria-label="Subir libro"
+  1073→  1073→          >
+  1074→  1074→            <Plus className="size-6" />
+  1075→  1075→          </Button>
+  1076→  1076→        </DialogTrigger>
+  1077→  1077→        <DialogContent>
+  1078→  1078→          <DialogHeader>
+  1079→  1079→            <DialogTitle>Subir Libro</DialogTitle>
+  1080→  1080→            <DialogDescription>
+  1081→  1081→              Selecciona un archivo PDF para agregarlo a tu biblioteca.
+  1082→  1082→            </DialogDescription>
+  1083→  1083→          </DialogHeader>
+  1084→  1084→          <div
+  1085→  1085→            className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+  1086→  1086→            onClick={() => fileInputRef.current?.click()}
+  1087→  1087→          >
+  1088→  1088→            {isUploading ? (
+  1089→  1089→              <div className="flex flex-col items-center gap-3">
+  1090→  1090→                <Loader2 className="size-10 animate-spin text-primary" />
+  1091→  1091→                <p className="text-sm text-muted-foreground">Subiendo libro...</p>
+  1092→  1092→              </div>
+  1093→  1093→            ) : (
+  1094→  1094→              <>
+  1095→  1095→                <BookOpen className="size-10 mx-auto text-muted-foreground mb-3" />
+  1096→  1096→                <p className="text-sm text-muted-foreground">
+  1097→  1097→                  Toca para seleccionar un archivo PDF
+  1098→  1098→                </p>
+  1099→  1099→              </>
+  1100→  1100→            )}
+  1101→  1101→            <input
+  1102→  1102→              ref={fileInputRef}
+  1103→  1103→              type="file"
+  1104→  1104→              accept=".pdf"
+  1105→  1105→              className="hidden"
+  1106→  1106→              onChange={handleFileSelect}
+  1107→  1107→            />
+  1108→  1108→          </div>
+  1109→  1109→          {uploadError && (
+  1110→  1110→            <div className="mt-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg">
+  1111→  1111→              ⚠️ {uploadError}
+  1112→  1112→            </div>
+  1113→  1113→          )}
+  1114→  1114→        </DialogContent>
+  1115→  1115→      </Dialog>
+  1116→  1116→
+  1117→  1117→      {/* Duplicate Alert */}
+  1118→  1118→      <AlertDialog open={!!duplicateInfo} onOpenChange={(open) => { if (!open) setDuplicateInfo(null) }}>
+  1119→  1119→        <AlertDialogContent>
+  1120→  1120→          <AlertDialogHeader>
+  1121→  1121→            <AlertDialogTitle className="flex items-center gap-2">
+  1122→  1122→              <AlertTriangle className="size-5 text-accent" />
+  1123→  1123→              ¡Ya tienes este libro!
+  1124→  1124→            </AlertDialogTitle>
+  1125→  1125→            <AlertDialogDescription>
+  1126→  1126→              {duplicateInfo?.message || 'Se encontró un libro duplicado en tu biblioteca.'}
+  1127→  1127→            </AlertDialogDescription>
+  1128→  1128→          </AlertDialogHeader>
+  1129→  1129→          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+  1130→  1130→            <AlertDialogCancel onClick={() => { setDuplicateInfo(null); setUploadOpen(false) }}>
+  1131→  1131→              Cancelar
+  1132→  1132→            </AlertDialogCancel>
+  1133→  1133→            <AlertDialogAction onClick={handleDuplicateKeepBoth} className="bg-secondary text-secondary-foreground hover:bg-secondary/80">
+  1134→  1134→              Guardar ambos
+  1135→  1135→            </AlertDialogAction>
+  1136→  1136→            <AlertDialogAction onClick={handleDuplicateReplace} className="bg-primary text-primary-foreground hover:bg-primary/90">
+  1137→  1137→              Reemplazar
+  1138→  1138→            </AlertDialogAction>
+  1139→  1139→          </AlertDialogFooter>
+  1140→  1140→        </AlertDialogContent>
+  1141→  1141→      </AlertDialog>
+  1142→  1142→
+  1143→  1143→      {/* Delete Confirmation */}
+  1144→  1144→      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+  1145→  1145→        <AlertDialogContent>
+  1146→  1146→          <AlertDialogHeader>
+  1147→  1147→            <AlertDialogTitle>¿Eliminar libro?</AlertDialogTitle>
+  1148→  1148→            <AlertDialogDescription>
+  1149→  1149→              ¿Estás seguro de que quieres eliminar &ldquo;{deleteTarget?.title}&rdquo;? Esta acción no se puede deshacer.
+  1150→  1150→            </AlertDialogDescription>
+  1151→  1151→          </AlertDialogHeader>
+  1152→  1152→          <AlertDialogFooter>
+  1153→  1153→            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+  1154→  1154→            <AlertDialogAction
+  1155→  1155→              onClick={() => deleteTarget && handleDeleteBook(deleteTarget)}
+  1156→  1156→              className="bg-destructive text-white hover:bg-destructive/90"
+  1157→  1157→            >
+  1158→  1158→              Eliminar
+  1159→  1159→            </AlertDialogAction>
+  1160→  1160→          </AlertDialogFooter>
+  1161→  1161→        </AlertDialogContent>
+  1162→  1162→      </AlertDialog>
+  1163→  1163→    </div>
+  1164→  1164→  )
+  1165→  1165→}
+  1166→  1166→
+  1167→  1167→// ──────────────────────────────────────────────
+  1168→  1168→// BOOK CARD
+  1169→  1169→// ──────────────────────────────────────────────
+  1170→  1170→function BookCard({
+  1171→  1171→  book,
+  1172→  1172→  index,
+  1173→  1173→  onOpen,
+  1174→  1174→  onDelete,
+  1175→  1175→}: {
+  1176→  1176→  book: BookItem
+  1177→  1177→  index: number
+  1178→  1178→  onOpen: (book: BookItem) => void
+  1179→  1179→  onDelete: (book: BookItem) => void
+  1180→  1180→}) {
+  1181→  1181→  const progress = book.totalChars > 0 ? Math.round((book.readChars / book.totalChars) * 100) : 0
+  1182→  1182→
+  1183→  1183→  // Use hex coverColor directly with inline style gradient
+  1184→  1184→  const coverBg = book.coverColor || '#2A9D8F'
+  1185→  1185→  const coverDark = darkenHex(coverBg, 0.3)
+  1186→  1186→
+  1187→  1187→  const handleContextMenu = useCallback(
+  1188→  1188→    (e: React.MouseEvent) => {
+  1189→  1189→      e.preventDefault()
+  1190→  1190→      onDelete(book)
+  1191→  1191→    },
+  1192→  1192→    [book, onDelete]
+  1193→  1193→  )
+  1194→  1194→
+  1195→  1195→  return (
+  1196→  1196→    <motion.div
+  1197→  1197→      initial={{ opacity: 0, y: 20 }}
+  1198→  1198→      animate={{ opacity: 1, y: 0 }}
+  1199→  1199→      transition={{ delay: index * 0.05, duration: 0.3 }}
+  1200→  1200→      whileHover={{ scale: 1.02 }}
+  1201→  1201→      whileTap={{ scale: 0.98 }}
+  1202→  1202→    >
+  1203→  1203→      <Card
+  1204→  1204→        className="cursor-pointer overflow-hidden py-0 gap-3 transition-shadow hover:shadow-md group relative"
+  1205→  1205→        onClick={() => onOpen(book)}
+  1206→  1206→        onContextMenu={handleContextMenu}
+  1207→  1207→      >
+  1208→  1208→        {/* Cover */}
+  1209→  1209→        <div
+  1210→  1210→          className="h-36 flex items-end p-3 relative"
+  1211→  1211→          style={{
+  1212→  1212→            background: `linear-gradient(135deg, ${coverBg} 0%, ${coverDark} 100%)`,
+  1213→  1213→          }}
+  1214→  1214→        >
+  1215→  1215→          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+  1216→  1216→          <p className="text-white font-semibold text-sm leading-tight line-clamp-2 relative z-10 drop-shadow-sm">
+  1217→  1217→            {book.title}
+  1218→  1218→          </p>
+  1219→  1219→          {book.isFinished && (
+  1220→  1220→            <Badge className="absolute top-2 right-2 bg-green-500 text-white border-0 z-10 gap-1">
+  1221→  1221→              <Check className="size-3" />
+  1222→  1222→            </Badge>
+  1223→  1223→          )}
+  1224→  1224→          {/* Delete button on hover */}
+  1225→  1225→          <Button
+  1226→  1226→            variant="ghost"
+  1227→  1227→            size="icon"
+  1228→  1228→            className="absolute top-2 left-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity z-10 text-white/80 hover:text-white hover:bg-white/20"
+  1229→  1229→            onClick={(e) => {
+  1230→  1230→              e.stopPropagation()
+  1231→  1231→              onDelete(book)
+  1232→  1232→            }}
+  1233→  1233→            aria-label="Eliminar libro"
+  1234→  1234→          >
+  1235→  1235→            <Trash2 className="size-3.5" />
+  1236→  1236→          </Button>
+  1237→  1237→        </div>
+  1238→  1238→
+  1239→  1239→        <div className="px-3 pb-3 space-y-2">
+  1240→  1240→          <p className="text-xs text-muted-foreground truncate">{book.author}</p>
+  1241→  1241→          <Progress value={progress} className="h-1.5" />
+  1242→  1242→          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+  1243→  1243→            <span>{progress}%</span>
+  1244→  1244→            {book.isFinished ? (
+  1245→  1245→              <span className="text-green-600 font-medium">Completado</span>
+  1246→  1246→            ) : book.estimatedMin > 0 ? (
+  1247→  1247→              <span className="flex items-center gap-0.5">
+  1248→  1248→                <Clock className="size-3" />
+  1249→  1249→                ~{book.estimatedMin} min
+  1250→  1250→              </span>
+  1251→  1251→            ) : null}
+  1252→  1252→          </div>
+  1253→  1253→        </div>
+  1254→  1254→      </Card>
+  1255→  1255→    </motion.div>
+  1256→  1256→  )
+  1257→  1257→}
+  1258→  1258→
+  1259→  1259→// ──────────────────────────────────────────────
+  1260→  1260→// READER TAB
+  1261→  1261→// ──────────────────────────────────────────────
+  1262→  1262→function ReaderTab() {
+  1263→  1263→  const store = useBookMateStore()
+  1264→  1264→  const {
+  1265→  1265→    currentBook,
+  1266→  1266→    bookText,
+  1267→  1267→    isPlaying,
+  1268→  1268→    setIsPlaying,
+  1269→  1269→    playbackSpeed,
+  1270→  1270→    setPlaybackSpeed,
+  1271→  1271→    currentCharIndex,
+  1272→  1272→    setCurrentCharIndex,
+  1273→  1273→    readingMode,
+  1274→  1274→    setReadingMode,
+  1275→  1275→    ambientSound,
+  1276→  1276→    setAmbientSound,
+  1277→  1277→    ambientVolume,
+  1278→  1278→    setAmbientVolume,
+  1279→  1279→    sleepTimer,
+  1280→  1280→    setSleepTimer,
+  1281→  1281→    showExplica,
+  1282→  1282→    setShowExplica,
+  1283→  1283→    explicaText,
+  1284→  1284→    setExplicaText,
+  1285→  1285→    highlights,
+  1286→  1286→    setHighlights,
+  1287→  1287→    addHighlight,
+  1288→  1288→    isExplaining,
+  1289→  1289→    setIsExplaining,
+  1290→  1290→    isLoadingBook,
+  1291→  1291→    setIsLoadingBook,
+  1292→  1292→    userPlan,
+  1293→  1293→    isVip,
+  1294→  1294→  } = store
+  1295→  1295→
+  1296→  1296→  // Plan-based feature access
+  1297→  1297→  const plan = isVip ? 'pro' : userPlan
+  1298→  1298→  const canUseAmbientSounds = plan !== 'free'
+  1299→  1299→  const canUseSleepTimer = plan !== 'free'
+  1300→  1300→  const canUseAllSpeeds = plan !== 'free'
+  1301→  1301→  const maxHighlightsPerBook = plan === 'free' ? 5 : Infinity
+  1302→  1302→  const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
+  1303→  1303→  const canUseIAVoice = plan !== 'free'
+  1304→  1304→
+  1305→  1305→  // TTS engine
+  1306→  1306→  const tts = useTTS()
+  1307→  1307→
+  1308→  1308→  // Ambient sound engine
+  1309→  1309→  useAmbientSound()
+  1310→  1310→
+  1311→  1311→  const [explicaResult, setExplicaResult] = useState<string | null>(null)
+  1312→  1312→  const [selectedText, setSelectedText] = useState('')
+  1313→  1313→  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null)
+  1314→  1314→  const [showUpgradeModal, setShowUpgradeModal] = useState<string | null>(null) // feature name
+  1315→  1315→  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  1316→  1316→  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  1317→  1317→  const sleepEndTimeRef = useRef<number | null>(null)
+  1318→  1318→
+  1319→  1319→  // ─── Reading time tracking ───
+  1320→  1320→  const readingStartRef = useRef<number | null>(null)
+  1321→  1321→  const readingMinutesAccumRef = useRef(0)
+  1322→  1322→  const readingLogTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  1323→  1323→
+  1324→  1324→  // Start tracking reading time when book is opened and reading
+  1325→  1325→  useEffect(() => {
+  1326→  1326→    if (currentBook && isPlaying) {
+  1327→  1327→      readingStartRef.current = Date.now()
+  1328→  1328→      // Accumulate reading time every 30 seconds and send to server every 2 minutes
+  1329→  1329→      readingLogTimerRef.current = setInterval(() => {
+  1330→  1330→        const now = Date.now()
+  1331→  1331→        if (readingStartRef.current) {
+  1332→  1332→          const elapsedMin = (now - readingStartRef.current) / 60000
+  1333→  1333→          readingMinutesAccumRef.current += elapsedMin
+  1334→  1334→          readingStartRef.current = now
+  1335→  1335→        }
+  1336→  1336→        // Send to server every ~2 minutes of accumulated time
+  1337→  1337→        if (readingMinutesAccumRef.current >= 2 && currentBook) {
+  1338→  1338→          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+  1339→  1339→          readingMinutesAccumRef.current = 0
+  1340→  1340→          fetch('/api/reading-logs', {
+  1341→  1341→            method: 'POST',
+  1342→  1342→            headers: { 'Content-Type': 'application/json' },
+  1343→  1343→            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
+  1344→  1344→          }).catch(() => {})
+  1345→  1345→        }
+  1346→  1346→      }, 30000) // check every 30s
+  1347→  1347→    } else {
+  1348→  1348→      // Not playing — save any accumulated time
+  1349→  1349→      if (readingStartRef.current && currentBook) {
+  1350→  1350→        const elapsedMin = (Date.now() - readingStartRef.current) / 60000
+  1351→  1351→        readingMinutesAccumRef.current += elapsedMin
+  1352→  1352→        readingStartRef.current = null
+  1353→  1353→        // Send if we have at least 1 minute accumulated
+  1354→  1354→        if (readingMinutesAccumRef.current >= 1) {
+  1355→  1355→          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+  1356→  1356→          readingMinutesAccumRef.current = 0
+  1357→  1357→          fetch('/api/reading-logs', {
+  1358→  1358→            method: 'POST',
+  1359→  1359→            headers: { 'Content-Type': 'application/json' },
+  1360→  1360→            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
+  1361→  1361→          }).catch(() => {})
+  1362→  1362→        }
+  1363→  1363→      }
+  1364→  1364→      if (readingLogTimerRef.current) {
+  1365→  1365→        clearInterval(readingLogTimerRef.current)
+  1366→  1366→        readingLogTimerRef.current = null
+  1367→  1367→      }
+  1368→  1368→    }
+  1369→  1369→    return () => {
+  1370→  1370→      if (readingLogTimerRef.current) {
+  1371→  1371→        clearInterval(readingLogTimerRef.current)
+  1372→  1372→        readingLogTimerRef.current = null
+  1373→  1373→      }
+  1374→  1374→    }
+  1375→  1375→  }, [currentBook, isPlaying])
+  1376→  1376→
+  1377→  1377→  // Fetch highlights when book changes
+  1378→  1378→  useEffect(() => {
+  1379→  1379→    if (!currentBook) return
+  1380→  1380→    let cancelled = false
+  1381→  1381→    const fetchHighlights = async () => {
+  1382→  1382→      try {
+  1383→  1383→        const res = await fetch(`/api/highlights?bookId=${currentBook.id}`)
+  1384→  1384→        if (res.ok && !cancelled) {
+  1385→  1385→          const data = await res.json()
+  1386→  1386→          setHighlights(data.highlights || [])
+  1387→  1387→        }
+  1388→  1388→      } catch {
+  1389→  1389→        // silently fail
+  1390→  1390→      }
+  1391→  1391→    }
+  1392→  1392→    fetchHighlights()
+  1393→  1393→    return () => { cancelled = true }
+  1394→  1394→  }, [currentBook, setHighlights])
+  1395→  1395→
+  1396→  1396→  // Stop TTS when leaving the reader tab
+  1397→  1397→  useEffect(() => {
+  1398→  1398→    return () => {
+  1399→  1399→      if (typeof window !== 'undefined' && window.speechSynthesis) {
+  1400→  1400→        window.speechSynthesis.cancel()
+  1401→  1401→      }
+  1402→  1402→    }
+  1403→  1403→  }, [])
+  1404→  1404→
+  1405→  1405→  // Debounced save progress
+  1406→  1406→  const saveProgress = useCallback(
+  1407→  1407→    (charIdx: number) => {
+  1408→  1408→      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+  1409→  1409→      saveTimerRef.current = setTimeout(async () => {
+  1410→  1410→        if (!currentBook) return
+  1411→  1411→        try {
+  1412→  1412→          const readChars = Math.max(charIdx, currentBook.readChars)
+  1413→  1413→          const isFinished = readChars >= currentBook.totalChars && currentBook.totalChars > 0
+  1414→  1414→          await fetch(`/api/books/${currentBook.id}`, {
+  1415→  1415→            method: 'PATCH',
+  1416→  1416→            headers: { 'Content-Type': 'application/json' },
+  1417→  1417→            body: JSON.stringify({
+  1418→  1418→              currentCharIdx: charIdx,
+  1419→  1419→              readChars,
+  1420→  1420→              isFinished,
+  1421→  1421→            }),
+  1422→  1422→          })
+  1423→  1423→        } catch {
+  1424→  1424→          // silently fail
+  1425→  1425→        }
+  1426→  1426→      }, 1500)
+  1427→  1427→    },
+  1428→  1428→    [currentBook]
+  1429→  1429→  )
+  1430→  1430→
+  1431→  1431→  // Save progress when charIndex changes
+  1432→  1432→  useEffect(() => {
+  1433→  1433→    if (currentBook && currentCharIndex > 0) {
+  1434→  1434→      saveProgress(currentCharIndex)
+  1435→  1435→    }
+  1436→  1436→    return () => {
+  1437→  1437→      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+  1438→  1438→    }
+  1439→  1439→  }, [currentCharIndex, currentBook, saveProgress])
+  1440→  1440→
+  1441→  1441→  // Auto-scroll to active sentence when TTS is playing
+  1442→  1442→  useEffect(() => {
+  1443→  1443→    if (!isPlaying || currentCharIndex === 0) return
+  1444→  1444→    const activeEl = document.getElementById('tts-active-sentence')
+  1445→  1445→    if (activeEl) {
+  1446→  1446→      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  1447→  1447→    }
+  1448→  1448→  }, [currentCharIndex, isPlaying])
+  1449→  1449→
+  1450→  1450→  // Sleep Timer: stop TTS after X minutes
+  1451→  1451→  useEffect(() => {
+  1452→  1452→    if (sleepTimerRef.current) {
+  1453→  1453→      clearInterval(sleepTimerRef.current)
+  1454→  1454→      sleepTimerRef.current = null
+  1455→  1455→    }
+  1456→  1456→
+  1457→  1457→    if (sleepTimer === null || sleepTimer === -1) {
+  1458→  1458→      setSleepTimeLeft(null)
+  1459→  1459→      sleepEndTimeRef.current = null
+  1460→  1460→      return
+  1461→  1461→    }
+  1462→  1462→
+  1463→  1463→    // Set end time
+  1464→  1464→    const endTime = Date.now() + sleepTimer * 60 * 1000
+  1465→  1465→    sleepEndTimeRef.current = endTime
+  1466→  1466→    setSleepTimeLeft(sleepTimer * 60) // seconds left
+  1467→  1467→
+  1468→  1468→    sleepTimerRef.current = setInterval(() => {
+  1469→  1469→      const now = Date.now()
+  1470→  1470→      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
+  1471→  1471→      setSleepTimeLeft(remaining)
+  1472→  1472→
+  1473→  1473→      if (remaining <= 0) {
+  1474→  1474→        // Time's up - stop TTS and ambient sound
+  1475→  1475→        if (sleepTimerRef.current) {
+  1476→  1476→          clearInterval(sleepTimerRef.current)
+  1477→  1477→          sleepTimerRef.current = null
+  1478→  1478→        }
+  1479→  1479→        tts.pause()
+  1480→  1480→        setAmbientSound(null)
+  1481→  1481→        setSleepTimer(null)
+  1482→  1482→        setSleepTimeLeft(null)
+  1483→  1483→        sleepEndTimeRef.current = null
+  1484→  1484→      }
+  1485→  1485→    }, 1000)
+  1486→  1486→
+  1487→  1487→    return () => {
+  1488→  1488→      if (sleepTimerRef.current) {
+  1489→  1489→        clearInterval(sleepTimerRef.current)
+  1490→  1490→        sleepTimerRef.current = null
+  1491→  1491→      }
+  1492→  1492→    }
+  1493→  1493→  }, [sleepTimer, tts, setAmbientSound, setSleepTimer])
+  1494→  1494→
+  1495→  1495→  // Check if speech synthesis is available and has voices
+  1496→  1496→  const [hasVoices, setHasVoices] = useState(false)
+  1497→  1497→  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+  1498→  1498→
+  1499→  1499→  useEffect(() => {
+  1500→  1500→    if (!speechSupported) return
+  1501→  1501→    const checkVoices = () => {
+  1502→  1502→      const voices = window.speechSynthesis.getVoices()
+  1503→  1503→      setHasVoices(voices.length > 0)
+  1504→  1504→    }
+  1505→  1505→    checkVoices()
+  1506→  1506→    window.speechSynthesis.onvoiceschanged = checkVoices
+  1507→  1507→    const timer = setTimeout(checkVoices, 1000)
+  1508→  1508→    return () => clearTimeout(timer)
+  1509→  1509→  }, [speechSupported])
+  1510→  1510→
+  1511→  1511→  // Empty state
+  1512→  1512→  if (!currentBook) {
+  1513→  1513→    return (
+  1514→  1514→      <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+  1515→  1515→        <Headphones className="size-16 text-muted-foreground/40 mb-4" />
+  1516→  1516→        <p className="text-muted-foreground text-lg font-medium">
+  1517→  1517→          Selecciona un libro de tu biblioteca
+  1518→  1518→        </p>
+  1519→  1519→        <p className="text-muted-foreground/70 text-sm mt-1">
+  1520→  1520→          Ve a la pestaña Biblioteca y elige un libro para empezar a leer
+  1521→  1521→        </p>
+  1522→  1522→      </div>
+  1523→  1523→    )
+  1524→  1524→  }
+  1525→  1525→
+  1526→  1526→  const totalChars = bookText.length
+  1527→  1527→  const progressPercent = totalChars > 0 ? (currentCharIndex / totalChars) * 100 : 0
+  1528→  1528→
+  1529→  1529→  const handlePlayPause = () => {
+  1530→  1530→    if (isPlaying) {
+  1531→  1531→      tts.pause()
+  1532→  1532→    } else {
+  1533→  1533→      tts.play()
+  1534→  1534→    }
+  1535→  1535→  }
+  1536→  1536→
+  1537→  1537→  const handleSkipForward = () => {
+  1538→  1538→    tts.skipForward()
+  1539→  1539→  }
+  1540→  1540→
+  1541→  1541→  const handleSkipBack = () => {
+  1542→  1542→    tts.skipBack()
+  1543→  1543→  }
+  1544→  1544→
+  1545→  1545→  const handleProgressChange = (value: number[]) => {
+  1546→  1546→    const newIdx = Math.floor((value[0] / 100) * totalChars)
+  1547→  1547→    tts.seekTo(newIdx)
+  1548→  1548→  }
+  1549→  1549→
+  1550→  1550→  const handleTextSelect = () => {
+  1551→  1551→    const selection = window.getSelection()
+  1552→  1552→    if (selection && selection.toString().trim()) {
+  1553→  1553→      setSelectedText(selection.toString().trim())
+  1554→  1554→    }
+  1555→  1555→  }
+  1556→  1556→
+  1557→  1557→  const handleHighlight = async () => {
+  1558→  1558→    if (!selectedText || !currentBook) return
+  1559→  1559→
+  1560→  1560→    // Check plan-based highlight limit
+  1561→  1561→    if (highlights.length >= maxHighlightsPerBook) {
+  1562→  1562→      setShowUpgradeModal('highlights')
+  1563→  1563→      return
+  1564→  1564→    }
+  1565→  1565→
+  1566→  1566→    const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
+  1567→  1567→    const actualStart = charStart >= 0 ? charStart : 0
+  1568→  1568→
+  1569→  1569→    try {
+  1570→  1570→      const res = await fetch('/api/highlights', {
+  1571→  1571→        method: 'POST',
+  1572→  1572→        headers: { 'Content-Type': 'application/json' },
+  1573→  1573→        body: JSON.stringify({
+  1574→  1574→          bookId: currentBook.id,
+  1575→  1575→          text: selectedText,
+  1576→  1576→          color: 'yellow',
+  1577→  1577→          charStart: actualStart,
+  1578→  1578→          charEnd: actualStart + selectedText.length,
+  1579→  1579→        }),
+  1580→  1580→      })
+  1581→  1581→      if (res.ok) {
+  1582→  1582→        const data = await res.json()
+  1583→  1583→        addHighlight(data.highlight)
+  1584→  1584→      }
+  1585→  1585→    } catch {
+  1586→  1586→      // Fallback to local
+  1587→  1587→      addHighlight({
+  1588→  1588→        id: `hl-${Date.now()}`,
+  1589→  1589→        bookId: currentBook.id,
+  1590→  1590→        text: selectedText,
+  1591→  1591→        note: '',
+  1592→  1592→        color: 'yellow',
+  1593→  1593→        charStart: actualStart,
+  1594→  1594→        charEnd: actualStart + selectedText.length,
+  1595→  1595→      })
+  1596→  1596→    }
+  1597→  1597→    setSelectedText('')
+  1598→  1598→  }
+  1599→  1599→
+  1600→  1600→  const handleExplica = () => {
+  1601→  1601→    // Check plan-based Explica limit (we track this loosely on frontend)
+  1602→  1602→    // The real limit is enforced on the server via explicaUsed counter
+  1603→  1603→    if (selectedText) {
+  1604→  1604→      setExplicaText(selectedText)
+  1605→  1605→    }
+  1606→  1606→    setExplicaResult(null)
+  1607→  1607→    setShowExplica(true)
+  1608→  1608→  }
+  1609→  1609→
+  1610→  1610→  const handleExplicaOption = async (option: typeof EXPLICA_OPTIONS[number]) => {
+  1611→  1611→    const textToExplain = explicaText || selectedText
+  1612→  1612→    if (!textToExplain) return
+  1613→  1613→
+  1614→  1614→    setIsExplaining(true)
+  1615→  1615→    setExplicaResult(null)
+  1616→  1616→
+  1617→  1617→    try {
+  1618→  1618→      const res = await fetch('/api/explica', {
+  1619→  1619→        method: 'POST',
+  1620→  1620→        headers: { 'Content-Type': 'application/json' },
+  1621→  1621→        body: JSON.stringify({
+  1622→  1622→          text: textToExplain,
+  1623→  1623→          mode: option.mode,
+  1624→  1624→          bookTitle: currentBook?.title,
+  1625→  1625→        }),
+  1626→  1626→      })
+  1627→  1627→      if (res.ok) {
+  1628→  1628→        const data = await res.json()
+  1629→  1629→        setExplicaResult(data.explanation || 'No se pudo generar una explicación.')
+  1630→  1630→      } else {
+  1631→  1631→        setExplicaResult('Error al obtener la explicación. Inténtalo de nuevo.')
+  1632→  1632→      }
+  1633→  1633→    } catch {
+  1634→  1634→      setExplicaResult('Error de conexión. Inténtalo de nuevo.')
+  1635→  1635→    } finally {
+  1636→  1636→      setIsExplaining(false)
+  1637→  1637→    }
+  1638→  1638→  }
+  1639→  1639→
+  1640→  1640→  // Render text efficiently - only split around current position for highlighting
+  1641→  1641→  // Instead of splitting entire text into spans (crashes on large books),
+  1642→  1642→  // render plain text with a highlighted window around currentCharIndex
+  1643→  1643→  const renderText = () => {
+  1644→  1644→    if (!bookText) return null
+  1645→  1645→
+  1646→  1646→    // If no active reading position, just show plain text (fast)
+  1647→  1647→    if (currentCharIndex === 0) {
+  1648→  1648→      return <span>{bookText}</span>
+  1649→  1649→    }
+  1650→  1650→
+  1651→  1651→    // Find sentence boundaries around current position
+  1652→  1652→    const windowSize = 500 // chars around current position to check for highlighting
+  1653→  1653→    const before = Math.max(0, currentCharIndex - windowSize)
+  1654→  1654→    const after = Math.min(bookText.length, currentCharIndex + windowSize)
+  1655→  1655→    
+  1656→  1656→    // Split only the window area into sentences for highlighting
+  1657→  1657→    const beforeText = bookText.slice(0, before)
+  1658→  1658→    const windowText = bookText.slice(before, after)
+  1659→  1659→    const afterText = bookText.slice(after)
+  1660→  1660→    
+  1661→  1661→    const sentences = windowText.split(/(?<=[.!?])\s+/)
+  1662→  1662→    let charPos = before
+  1663→  1663→
+  1664→  1664→    return (
+  1665→  1665→      <>
+  1666→  1666→        {beforeText}
+  1667→  1667→        {sentences.map((sentence, i) => {
+  1668→  1668→          const start = charPos
+  1669→  1669→          const end = charPos + sentence.length
+  1670→  1670→          charPos = end + 1
+  1671→  1671→
+  1672→  1672→          const isActive = currentCharIndex >= start && currentCharIndex < end
+  1673→  1673→
+  1674→  1674→          return (
+  1675→  1675→            <span
+  1676→  1676→              key={i}
+  1677→  1677→              id={isActive ? 'tts-active-sentence' : undefined}
+  1678→  1678→              className={isActive ? 'highlight-active' : ''}
+  1679→  1679→            >
+  1680→  1680→              {sentence}{' '}
+  1681→  1681→            </span>
+  1682→  1682→          )
+  1683→  1683→        })}
+  1684→  1684→        {afterText}
+  1685→  1685→      </>
+  1686→  1686→    )
+  1687→  1687→  }
+  1688→  1688→
+  1689→  1689→  const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
+  1690→  1690→  const ReadingModeIcon = readingModeIcon
+  1691→  1691→
+  1692→  1692→  // Calculate the bottom offset for the fixed player bar (tab bar height)
+  1693→  1693→  // Tab bar is approximately 60px (py-2.5 + icon + text + border)
+  1694→  1694→  const TAB_BAR_HEIGHT = 60
+  1695→  1695→
+  1696→  1696→  return (
+  1697→  1697→    <div className="flex flex-col min-h-0 h-full">
+  1698→  1698→      {/* Book title */}
+  1699→  1699→      <div className="px-4 py-3 border-b shrink-0">
+  1700→  1700→        <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
+  1701→  1701→        <p className="text-xs text-muted-foreground">{currentBook.author}</p>
+  1702→  1702→      </div>
+  1703→  1703→
+  1704→  1704→      {/* TTS Status indicators */}
+  1705→  1705→      {tts.ttsStatus === 'playing' && (
+  1706→  1706→        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
+  1707→  1707→          <Volume2 className="size-3.5 text-primary animate-pulse" />
+  1708→  1708→          <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
+  1709→  1709→          <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
+  1710→  1710→        </div>
+  1711→  1711→      )}
+  1712→  1712→
+  1713→  1713→      {tts.ttsStatus === 'loading' && (
+  1714→  1714→        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
+  1715→  1715→          <Loader2 className="size-3.5 text-primary animate-spin" />
+  1716→  1716→          <span className="text-xs text-primary font-medium">Cargando voz...</span>
+  1717→  1717→        </div>
+  1718→  1718→      )}
+  1719→  1719→
+  1720→  1720→      {tts.ttsStatus === 'paused' && (
+  1721→  1721→        <div className="px-4 py-1.5 bg-muted/50 border-b flex items-center gap-2 shrink-0">
+  1722→  1722→          <Pause className="size-3.5 text-muted-foreground" />
+  1723→  1723→          <span className="text-xs text-muted-foreground">Pausado</span>
+  1724→  1724→        </div>
+  1725→  1725→      )}
+  1726→  1726→
+  1727→  1727→      {/* Sleep Timer indicator */}
+  1728→  1728→      {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
+  1729→  1729→        <div className="px-4 py-1.5 bg-primary/5 border-b flex items-center gap-2 shrink-0">
+  1730→  1730→          <Timer className="size-3.5 text-primary" />
+  1731→  1731→          <span className="text-xs text-primary font-medium">
+  1732→  1732→            Durmiendo en {Math.floor(sleepTimeLeft / 60)}:{(sleepTimeLeft % 60).toString().padStart(2, '0')}
+  1733→  1733→          </span>
+  1734→  1734→        </div>
+  1735→  1735→      )}
+  1736→  1736→
+  1737→  1737→      {/* TTS Error */}
+  1738→  1738→      {tts.ttsStatus === 'error' && tts.ttsError && (
+  1739→  1739→        <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2 shrink-0">
+  1740→  1740→          <AlertTriangle className="size-3.5 text-destructive shrink-0 mt-0.5" />
+  1741→  1741→          <div className="flex-1">
+  1742→  1742→            <span className="text-xs text-destructive font-medium">{tts.ttsError}</span>
+  1743→  1743→            <button
+  1744→  1744→              className="text-[10px] text-muted-foreground underline ml-2"
+  1745→  1745→              onClick={() => { tts.stop(); tts.play(); }}
+  1746→  1746→            >
+  1747→  1747→              Reintentar
+  1748→  1748→            </button>
+  1749→  1749→          </div>
+  1750→  1750→        </div>
+  1751→  1751→      )}
+  1752→  1752→
+  1753→  1753→      {/* Speech not supported warning */}
+  1754→  1754→      {tts.ttsStatus === 'not-supported' && (
+  1755→  1755→        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
+  1756→  1756→          <AlertTriangle className="size-3.5 text-accent" />
+  1757→  1757→          <span className="text-xs text-accent-foreground">Tu navegador no soporta lectura en voz alta</span>
+  1758→  1758→        </div>
+  1759→  1759→      )}
+  1760→  1760→
+  1761→  1761→      {/* No voices available warning */}
+  1762→  1762→      {speechSupported && !hasVoices && tts.ttsStatus !== 'playing' && tts.ttsStatus !== 'loading' && (
+  1763→  1763→        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
+  1764→  1764→          <AlertTriangle className="size-3.5 text-accent" />
+  1765→  1765→          <span className="text-xs text-accent-foreground">Cargando voces... Si no funciona, recarga la página</span>
+  1766→  1766→        </div>
+  1767→  1767→      )}
+  1768→  1768→
+  1769→  1769→      {/* Text area - fills remaining space, scrolls independently */}
+  1770→  1770→      {/* Extra bottom padding to account for the fixed player bar */}
+  1771→  1771→      <ScrollArea className="flex-1 min-h-0 px-4 py-4">
+  1772→  1772→        {isLoadingBook ? (
+  1773→  1773→          <div className="space-y-3 max-w-2xl mx-auto">
+  1774→  1774→            {Array.from({ length: 8 }).map((_, i) => (
+  1775→  1775→              <Skeleton key={i} className="h-4 w-full" />
+  1776→  1776→            ))}
+  1777→  1777→          </div>
+  1778→  1778→        ) : readingMode === 'audio' ? (
+  1779→  1779→          /* Audio-only mode: show minimal info, no text */
+  1780→  1780→          <div className="flex flex-col items-center justify-center py-20 text-center max-w-2xl mx-auto">
+  1781→  1781→            <Headphones className="size-16 text-primary/30 mb-6" />
+  1782→  1782→            <p className="text-muted-foreground text-lg font-medium mb-2">Modo audio</p>
+  1783→  1783→            <p className="text-muted-foreground/70 text-sm mb-8">
+  1784→  1784→              Toca play para escuchar{currentBook ? ` "${currentBook.title}"` : ''}
+  1785→  1785→            </p>
+  1786→  1786→            {currentBook && (
+  1787→  1787→              <div className="text-center space-y-1">
+  1788→  1788→                <p className="text-foreground font-medium">{currentBook.title}</p>
+  1789→  1789→                <p className="text-sm text-muted-foreground">{currentBook.author}</p>
+  1790→  1790→                <p className="text-xs text-muted-foreground mt-2">
+  1791→  1791→                  {Math.floor(progressPercent)}% completado
+  1792→  1792→                </p>
+  1793→  1793→              </div>
+  1794→  1794→            )}
+  1795→  1795→          </div>
+  1796→  1796→        ) : (
+  1797→  1797→          <div
+  1798→  1798→            className={`text-base leading-relaxed max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
+  1799→  1799→            onMouseUp={handleTextSelect}
+  1800→  1800→            onTouchEnd={handleTextSelect}
+  1801→  1801→          >
+  1802→  1802→            {renderText()}
+  1803→  1803→          </div>
+  1804→  1804→        )}
+  1805→  1805→      </ScrollArea>
+  1806→  1806→
+  1807→  1807→      {/* Fixed bottom controls - always visible above tab bar */}
+  1808→  1808→      <div
+  1809→  1809→        className="fixed left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t"
+  1810→  1810→        style={{ bottom: `${TAB_BAR_HEIGHT}px` }}
+  1811→  1811→      >
+  1812→  1812→        <div className="max-w-2xl mx-auto">
+  1813→  1813→          {/* Selection actions */}
+  1814→  1814→          {selectedText && readingMode !== 'audio' && (
+  1815→  1815→            <motion.div
+  1816→  1816→              initial={{ opacity: 0, y: 10 }}
+  1817→  1817→              animate={{ opacity: 1, y: 0 }}
+  1818→  1818→              className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50"
+  1819→  1819→            >
+  1820→  1820→              <Button size="sm" variant="outline" onClick={handleHighlight}>
+  1821→  1821→                <BookMarked className="size-3.5 mr-1" />
+  1822→  1822→                Subrayar
+  1823→  1823→              </Button>
+  1824→  1824→              <Button size="sm" variant="outline" onClick={handleExplica}>
+  1825→  1825→                <Sparkles className="size-3.5 mr-1" />
+  1826→  1826→                Explica
+  1827→  1827→              </Button>
+  1828→  1828→              <Button
+  1829→  1829→                size="sm"
+  1830→  1830→                variant="ghost"
+  1831→  1831→                className="ml-auto"
+  1832→  1832→                onClick={() => setSelectedText('')}
+  1833→  1833→              >
+  1834→  1834→                <X className="size-3.5" />
+  1835→  1835→              </Button>
+  1836→  1836→            </motion.div>
+  1837→  1837→          )}
+  1838→  1838→
+  1839→  1839→          {/* Highlights count */}
+  1840→  1840→          {highlights.length > 0 && (
+  1841→  1841→            <div className="px-4 py-1.5 border-b bg-muted/30">
+  1842→  1842→              <p className="text-xs text-muted-foreground">
+  1843→  1843→                {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
+  1844→  1844→              </p>
+  1845→  1845→            </div>
+  1846→  1846→          )}
+  1847→  1847→
+  1848→  1848→          {/* Visual mode: simplified controls (no TTS player) */}
+  1849→  1849→          {readingMode === 'visual' && (
+  1850→  1850→            <div className="px-4 py-3 flex items-center justify-between">
+  1851→  1851→              <div className="flex items-center gap-1">
+  1852→  1852→                <DropdownMenu>
+  1853→  1853→                  <DropdownMenuTrigger asChild>
+  1854→  1854→                    <Button variant="ghost" size="icon" className="size-8">
+  1855→  1855→                      <ReadingModeIcon className="size-4" />
+  1856→  1856→                    </Button>
+  1857→  1857→                  </DropdownMenuTrigger>
+  1858→  1858→                  <DropdownMenuContent align="start">
+  1859→  1859→                    <DropdownMenuLabel>Modo de lectura</DropdownMenuLabel>
+  1860→  1860→                    <DropdownMenuSeparator />
+  1861→  1861→                    <DropdownMenuItem onClick={() => setReadingMode('visual')}>
+  1862→  1862→                      <Eye className="size-4 mr-2" />
+  1863→  1863→                      Visual
+  1864→  1864→                      {readingMode === 'visual' && <Check className="size-3.5 ml-auto" />}
+  1865→  1865→                    </DropdownMenuItem>
+  1866→  1866→                    <DropdownMenuItem onClick={() => setReadingMode('audio')}>
+  1867→  1867→                      <Ear className="size-4 mr-2" />
+  1868→  1868→                      Audio
+  1869→  1869→                      {readingMode === 'audio' && <Check className="size-3.5 ml-auto" />}
+  1870→  1870→                    </DropdownMenuItem>
+  1871→  1871→                    <DropdownMenuItem onClick={() => setReadingMode('both')}>
+  1872→  1872→                      <Layers className="size-4 mr-2" />
+  1873→  1873→                      Ambos
+  1874→  1874→                      {readingMode === 'both' && <Check className="size-3.5 ml-auto" />}
+  1875→  1875→                    </DropdownMenuItem>
+  1876→  1876→                  </DropdownMenuContent>
+  1877→  1877→                </DropdownMenu>
+  1878→  1878→              </div>
+  1879→  1879→              <div className="flex items-center gap-3">
+  1880→  1880→                <span className="text-xs text-muted-foreground">
+  1881→  1881→                  {Math.floor(progressPercent)}% leído
+  1882→  1882→                </span>
+  1883→  1883→              </div>
+  1884→  1884→              <div className="flex items-center gap-1">
+  1885→  1885→                <DropdownMenu>
+  1886→  1886→                  <DropdownMenuTrigger asChild>
+  1887→  1887→                    <Button
+  1888→  1888→                      variant="ghost"
+  1889→  1889→                      size="icon"
+  1890→  1890→                      className={`size-8 ${ambientSound ? 'text-primary' : ''}`}
+  1891→  1891→                    >
+  1892→  1892→                      <Volume2 className="size-4" />
+  1893→  1893→                    </Button>
+  1894→  1894→                  </DropdownMenuTrigger>
+  1895→  1895→                  <DropdownMenuContent align="end" className="w-52">
+  1896→  1896→                    <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
+  1897→  1897→                    <DropdownMenuSeparator />
+  1898→  1898→                    {!canUseAmbientSounds ? (
+  1899→  1899→                      <DropdownMenuItem
+  1900→  1900→                        className="text-primary"
+  1901→  1901→                        onClick={() => setShowUpgradeModal('ambient')}
+  1902→  1902→                      >
+  1903→  1903→                        <Lock className="size-4 mr-2" />
+  1904→  1904→                        Disponible en Plus y Pro
+  1905→  1905→                      </DropdownMenuItem>
+  1906→  1906→                    ) : (<>
+  1907→  1907→                    {AMBIENT_SOUNDS.map((sound) => {
+  1908→  1908→                      const SoundIcon = sound.icon
+  1909→  1909→                      return (
+  1910→  1910→                        <DropdownMenuItem
+  1911→  1911→                          key={sound.id}
+  1912→  1912→                          onClick={() => setAmbientSound(sound.id)}
+  1913→  1913→                          className={ambientSound === sound.id ? 'bg-primary/10' : ''}
+  1914→  1914→                        >
+  1915→  1915→                          <SoundIcon className="size-4 mr-2" />
+  1916→  1916→                          {sound.name}
+  1917→  1917→                          {ambientSound === sound.id && <Check className="size-3.5 ml-auto" />}
+  1918→  1918→                        </DropdownMenuItem>
+  1919→  1919→                      )
+  1920→  1920→                    })}
+  1921→  1921→                    <DropdownMenuSeparator />
+  1922→  1922→                    <DropdownMenuItem onClick={() => setAmbientSound(null)}>
+  1923→  1923→                      Silencio
+  1924→  1924→                      {ambientSound === null && <Check className="size-3.5 ml-auto" />}
+  1925→  1925→                    </DropdownMenuItem>
+  1926→  1926→                    {ambientSound && (
+  1927→  1927→                      <>
+  1928→  1928→                        <DropdownMenuSeparator />
+  1929→  1929→                        <div className="px-2 py-2">
+  1930→  1930→                          <div className="flex items-center gap-2">
+  1931→  1931→                            <Volume2 className="size-3.5 text-muted-foreground shrink-0" />
+  1932→  1932→                            <Slider
+  1933→  1933→                              value={[ambientVolume * 100]}
+  1934→  1934→                              max={100}
+  1935→  1935→                              step={5}
+  1936→  1936→                              onValueChange={(v) => setAmbientVolume(v[0] / 100)}
+  1937→  1937→                              className="flex-1"
+  1938→  1938→                            />
+  1939→  1939→                            <span className="text-xs text-muted-foreground w-7 text-right">
+  1940→  1940→                              {Math.round(ambientVolume * 100)}%
+  1941→  1941→                            </span>
+  1942→  1942→                          </div>
+  1943→  1943→                        </div>
+  1944→  1944→                      </>
+  1945→  1945→                    )}
+  1946→  1946→                    </>)}
+  1947→  1947→                  </DropdownMenuContent>
+  1948→  1948→                </DropdownMenu>
+  1949→  1949→              </div>
+  1950→  1950→            </div>
+  1951→  1951→          )}
+  1952→  1952→
+  1953→  1953→          {/* Audio/Both mode: full player controls */}
+  1954→  1954→          {readingMode !== 'visual' && (
+  1955→  1955→          <div className="px-4 py-3 space-y-2">
+  1956→  1956→        {/* Progress slider */}
+  1957→  1957→        <div className="flex items-center gap-3">
+  1958→  1958→          <span className="text-[11px] text-muted-foreground w-8 text-right">
+  1959→  1959→            {Math.floor(progressPercent)}%
+  1960→  1960→          </span>
+  1961→  1961→          <Slider
+  1962→  1962→            value={[progressPercent]}
+  1963→  1963→            max={100}
+  1964→  1964→            step={0.1}
+  1965→  1965→            onValueChange={handleProgressChange}
+  1966→  1966→            className="flex-1"
+  1967→  1967→          />
+  1968→  1968→          <span className="text-[11px] text-muted-foreground w-8">100%</span>
+  1969→  1969→        </div>
+  1970→  1970→
+  1971→  1971→        {/* Main controls - compact row */}
+  1972→  1972→        <div className="flex items-center justify-between">
+  1973→  1973→          {/* Left: Speed + Mode */}
+  1974→  1974→          <div className="flex items-center gap-1">
+  1975→  1975→            <DropdownMenu>
+  1976→  1976→              <DropdownMenuTrigger asChild>
+  1977→  1977→                <Button variant="ghost" size="sm" className="text-xs font-mono h-8">
+  1978→  1978→                  {playbackSpeed}x
+  1979→  1979→                </Button>
+  1980→  1980→              </DropdownMenuTrigger>
+  1981→  1981→              <DropdownMenuContent align="start">
+  1982→  1982→                <DropdownMenuLabel>Velocidad</DropdownMenuLabel>
+  1983→  1983→                <DropdownMenuSeparator />
+  1984→  1984→                {(canUseAllSpeeds ? SPEED_OPTIONS : SPEED_OPTIONS_FREE).map((speed) => (
+  1985→  1985→                  <DropdownMenuItem
+  1986→  1986→                    key={speed}
+  1987→  1987→                    onClick={() => setPlaybackSpeed(speed)}
+  1988→  1988→                    className={speed === playbackSpeed ? 'bg-primary/10' : ''}
+  1989→  1989→                  >
+  1990→  1990→                    {speed}x
+  1991→  1991→                    {speed === playbackSpeed && <Check className="size-3.5 ml-auto" />}
+  1992→  1992→                  </DropdownMenuItem>
+  1993→  1993→                ))}
+  1994→  1994→                {!canUseAllSpeeds && (
+  1995→  1995→                  <>
+  1996→  1996→                    <DropdownMenuSeparator />
+  1997→  1997→                    <DropdownMenuItem
+  1998→  1998→                      className="text-primary"
+  1999→  1999→                      onClick={() => setShowUpgradeModal('speed')}
+  2000→  2000→                    >
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

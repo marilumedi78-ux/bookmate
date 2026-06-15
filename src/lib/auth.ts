@@ -35,6 +35,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           plan: user.plan,
           isVip: user.isVip,
+          isAdmin: user.isAdmin,
         }
       },
     }),
@@ -45,16 +46,18 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.plan = (user as any).plan
         token.isVip = (user as any).isVip
+        token.isAdmin = (user as any).isAdmin
       }
       // Refresh plan info from DB on each JWT refresh
       if (token.id) {
         const dbUser = await db.user.findUnique({
           where: { id: token.id as string },
-          select: { plan: true, isVip: true, name: true },
+          select: { plan: true, isVip: true, isAdmin: true, name: true },
         })
         if (dbUser) {
           token.plan = dbUser.plan
           token.isVip = dbUser.isVip
+          token.isAdmin = dbUser.isAdmin
           token.name = dbUser.name
         }
       }
@@ -65,6 +68,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         session.user.plan = token.plan as string
         session.user.isVip = token.isVip as boolean
+        session.user.isAdmin = token.isAdmin as boolean
       }
       return session
     },

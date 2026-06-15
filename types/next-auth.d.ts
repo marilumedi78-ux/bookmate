@@ -5,6 +5,7 @@ declare module 'next-auth' {
     id: string
     plan: string
     isVip: boolean
+    isAdmin: boolean
   }
 
   interface Session {
@@ -15,6 +16,7 @@ declare module 'next-auth' {
       image?: string | null
       plan: string
       isVip: boolean
+      isAdmin: boolean
     }
   }
 }
@@ -24,5 +26,6 @@ declare module 'next-auth/jwt' {
     id: string
     plan: string
     isVip: boolean
+    isAdmin: boolean
   }
 }

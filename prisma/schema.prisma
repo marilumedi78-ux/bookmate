@@ -25,6 +25,7 @@ model User {
   iaHoursUsed   Float    @default(0) // hours of IA voice used this month
   explicaUsed   Int      @default(0) // number of "Explica" uses this month
   ocrUsed       Int      @default(0) // number of OCR scans this month
+  usageMonth    String?  // YYYY-MM format, tracks which month the usage counters are for
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   books         Book[]

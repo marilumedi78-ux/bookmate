@@ -62,6 +62,7 @@ import {
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
+import { useAITTS } from '@/lib/use-ai-tts'
 import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { Button } from '@/components/ui/button'
@@ -1276,6 +1277,8 @@ function ReaderTab() {
     setAmbientSound,
     ambientVolume,
     setAmbientVolume,
+    voiceMode,
+    setVoiceMode,
     sleepTimer,
     setSleepTimer,
     showExplica,
@@ -1302,8 +1305,22 @@ function ReaderTab() {
   const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
   const canUseIAVoice = plan !== 'free'
 
-  // TTS engine
-  const tts = useTTS()
+  // Both TTS engines — switch based on voiceMode
+  const browserTts = useTTS()
+  const aiTts = useAITTS()
+  const tts = voiceMode === 'ai' && canUseIAVoice ? aiTts : browserTts
+
+  // Handle AI TTS errors (plan limits, etc.)
+  useEffect(() => {
+    if (voiceMode === 'ai' && aiTts.ttsError) {
+      // If the error is about plan limits, show upgrade modal
+      if (aiTts.ttsError.includes('límite') || aiTts.ttsError.includes('Limit') || aiTts.ttsError.includes('requiere')) {
+        setShowUpgradeModal('ia-voice')
+        // Fall back to browser TTS
+        setVoiceMode('browser')
+      }
+    }
+  }, [voiceMode, aiTts.ttsError, setShowUpgradeModal, setVoiceMode])
 
   // Ambient sound engine
   useAmbientSound()
@@ -1317,49 +1334,124 @@ function ReaderTab() {
   const sleepEndTimeRef = useRef<number | null>(null)
 
   // ─── Reading time tracking ───
+  // Tracks reading time whenever a book is open (not just when TTS is playing).
+  // Uses document visibility to pause when the user switches tabs/apps.
   const readingStartRef = useRef<number | null>(null)
   const readingMinutesAccumRef = useRef(0)
   const readingLogTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const currentBookIdRef = useRef<string | null>(null)
+  const isVisibleRef = useRef(true)
+  const lastActivityRef = useRef<number>(Date.now())
+  const ACTIVITY_TIMEOUT = 120000 // 2 min without activity → pause tracking
 
-  // Start tracking reading time when book is opened and reading
+  // Keep currentBookId ref in sync
   useEffect(() => {
-    if (currentBook && isPlaying) {
-      readingStartRef.current = Date.now()
-      // Accumulate reading time every 30 seconds and send to server every 2 minutes
-      readingLogTimerRef.current = setInterval(() => {
-        const now = Date.now()
-        if (readingStartRef.current) {
-          const elapsedMin = (now - readingStartRef.current) / 60000
-          readingMinutesAccumRef.current += elapsedMin
-          readingStartRef.current = now
-        }
-        // Send to server every ~2 minutes of accumulated time
-        if (readingMinutesAccumRef.current >= 2 && currentBook) {
-          const minutesToSend = Math.round(readingMinutesAccumRef.current)
-          readingMinutesAccumRef.current = 0
-          fetch('/api/reading-logs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
-          }).catch(() => {})
-        }
-      }, 30000) // check every 30s
-    } else {
-      // Not playing — save any accumulated time
-      if (readingStartRef.current && currentBook) {
+    currentBookIdRef.current = currentBook?.id ?? null
+  }, [currentBook])
+
+  // Track user activity (scroll, click, touch, keypress) to detect active reading
+  useEffect(() => {
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now()
+    }
+    const events = ['scroll', 'click', 'touchstart', 'keydown', 'mousedown']
+    events.forEach(e => window.addEventListener(e, updateActivity, { passive: true }))
+    return () => {
+      events.forEach(e => window.removeEventListener(e, updateActivity))
+    }
+  }, [])
+
+  // Track document visibility
+  useEffect(() => {
+    const handleVisibility = () => {
+      isVisibleRef.current = !document.hidden
+      // When page becomes hidden, flush accumulated time
+      if (document.hidden && readingStartRef.current && currentBookIdRef.current) {
         const elapsedMin = (Date.now() - readingStartRef.current) / 60000
         readingMinutesAccumRef.current += elapsedMin
         readingStartRef.current = null
-        // Send if we have at least 1 minute accumulated
+        // Send if we have at least 1 minute
         if (readingMinutesAccumRef.current >= 1) {
           const minutesToSend = Math.round(readingMinutesAccumRef.current)
           readingMinutesAccumRef.current = 0
           fetch('/api/reading-logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
+            body: JSON.stringify({ bookId: currentBookIdRef.current, minutes: minutesToSend }),
           }).catch(() => {})
         }
+      }
+      // When page becomes visible again, restart tracking
+      if (!document.hidden && currentBookIdRef.current) {
+        readingStartRef.current = Date.now()
+        lastActivityRef.current = Date.now()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
+
+  // Flush accumulated reading time to server
+  const flushReadingTime = useCallback((bookId: string) => {
+    if (readingStartRef.current) {
+      const elapsedMin = (Date.now() - readingStartRef.current) / 60000
+      readingMinutesAccumRef.current += elapsedMin
+      readingStartRef.current = null
+    }
+    if (readingMinutesAccumRef.current >= 1) {
+      const minutesToSend = Math.round(readingMinutesAccumRef.current)
+      readingMinutesAccumRef.current = 0
+      fetch('/api/reading-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId, minutes: minutesToSend }),
+      }).catch(() => {})
+    }
+  }, [])
+
+  // Main reading time tracker: runs whenever a book is open
+  useEffect(() => {
+    if (currentBook) {
+      readingStartRef.current = Date.now()
+      lastActivityRef.current = Date.now()
+      // Accumulate reading time every 30 seconds and send to server every 2 minutes
+      readingLogTimerRef.current = setInterval(() => {
+        // Check if user is active (had activity in last 2 minutes)
+        const timeSinceActivity = Date.now() - lastActivityRef.current
+        if (!isVisibleRef.current || timeSinceActivity > ACTIVITY_TIMEOUT) {
+          // User is inactive or page is hidden — pause tracking
+          if (readingStartRef.current) {
+            const elapsedMin = (Date.now() - readingStartRef.current) / 60000
+            readingMinutesAccumRef.current += elapsedMin
+            readingStartRef.current = null
+          }
+          return
+        }
+        // User is active — accumulate time
+        const now = Date.now()
+        if (readingStartRef.current) {
+          const elapsedMin = (now - readingStartRef.current) / 60000
+          readingMinutesAccumRef.current += elapsedMin
+          readingStartRef.current = now
+        } else {
+          // Resume tracking after inactivity
+          readingStartRef.current = now
+        }
+        // Send to server every ~2 minutes of accumulated time
+        if (readingMinutesAccumRef.current >= 2 && currentBookIdRef.current) {
+          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+          readingMinutesAccumRef.current = 0
+          fetch('/api/reading-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: currentBookIdRef.current, minutes: minutesToSend }),
+          }).catch(() => {})
+        }
+      }, 30000) // check every 30s
+    } else {
+      // No book open — flush and stop
+      if (currentBookIdRef.current) {
+        flushReadingTime(currentBookIdRef.current)
       }
       if (readingLogTimerRef.current) {
         clearInterval(readingLogTimerRef.current)
@@ -1371,8 +1463,34 @@ function ReaderTab() {
         clearInterval(readingLogTimerRef.current)
         readingLogTimerRef.current = null
       }
+      // Flush on unmount
+      if (currentBookIdRef.current) {
+        if (readingStartRef.current) {
+          const elapsedMin = (Date.now() - readingStartRef.current) / 60000
+          readingMinutesAccumRef.current += elapsedMin
+          readingStartRef.current = null
+        }
+        if (readingMinutesAccumRef.current >= 1) {
+          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+          readingMinutesAccumRef.current = 0
+          // Use sendBeacon for reliability on unmount
+          try {
+            const blob = new Blob([JSON.stringify({
+              bookId: currentBookIdRef.current,
+              minutes: minutesToSend,
+            })], { type: 'application/json' })
+            navigator.sendBeacon('/api/reading-logs', blob)
+          } catch {
+            fetch('/api/reading-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bookId: currentBookIdRef.current, minutes: minutesToSend }),
+            }).catch(() => {})
+          }
+        }
+      }
     }
-  }, [currentBook, isPlaying])
+  }, [currentBook, flushReadingTime])
 
   // Fetch highlights when book changes
   useEffect(() => {
@@ -1581,6 +1699,12 @@ function ReaderTab() {
       if (res.ok) {
         const data = await res.json()
         addHighlight(data.highlight)
+      } else if (res.status === 403) {
+        // Plan limit reached
+        const data = await res.json()
+        if (data.code === 'PLAN_LIMIT') {
+          setShowUpgradeModal('highlights')
+        }
       }
     } catch {
       // Fallback to local
@@ -1627,6 +1751,15 @@ function ReaderTab() {
       if (res.ok) {
         const data = await res.json()
         setExplicaResult(data.explanation || 'No se pudo generar una explicación.')
+      } else if (res.status === 403) {
+        // Plan limit reached for Explica
+        const data = await res.json()
+        if (data.code === 'USAGE_LIMIT') {
+          setShowExplica(false)
+          setShowUpgradeModal('explica')
+        } else {
+          setExplicaResult(data.error || 'Error al obtener la explicación.')
+        }
       } else {
         setExplicaResult('Error al obtener la explicación. Inténtalo de nuevo.')
       }
@@ -1704,8 +1837,14 @@ function ReaderTab() {
       {/* TTS Status indicators */}
       {tts.ttsStatus === 'playing' && (
         <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
-          <Volume2 className="size-3.5 text-primary animate-pulse" />
-          <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
+          {voiceMode === 'ai' && canUseIAVoice ? (
+            <Sparkles className="size-3.5 text-primary animate-pulse" />
+          ) : (
+            <Volume2 className="size-3.5 text-primary animate-pulse" />
+          )}
+          <span className="text-xs text-primary font-medium">
+            {voiceMode === 'ai' && canUseIAVoice ? 'Leyendo con voz IA...' : 'Leyendo en voz alta...'}
+          </span>
           <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
         </div>
       )}
@@ -2032,6 +2171,61 @@ function ReaderTab() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Voice mode toggle: Browser TTS vs AI Voice */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`size-8 ${voiceMode === 'ai' ? 'text-primary' : ''}`}
+                >
+                  {voiceMode === 'ai' ? (
+                    <Sparkles className="size-4" />
+                  ) : (
+                    <Volume2 className="size-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel>Tipo de voz</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setVoiceMode('browser')}
+                  className={voiceMode === 'browser' ? 'bg-primary/10' : ''}
+                >
+                  <Volume2 className="size-4 mr-2" />
+                  Voz del navegador
+                  {voiceMode === 'browser' && <Check className="size-3.5 ml-auto" />}
+                </DropdownMenuItem>
+                {canUseIAVoice ? (
+                  <DropdownMenuItem
+                    onClick={() => setVoiceMode('ai')}
+                    className={voiceMode === 'ai' ? 'bg-primary/10' : ''}
+                  >
+                    <Sparkles className="size-4 mr-2" />
+                    Voz IA
+                    {voiceMode === 'ai' && <Check className="size-3.5 ml-auto" />}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="text-primary"
+                    onClick={() => setShowUpgradeModal('ia-voice')}
+                  >
+                    <Lock className="size-4 mr-2" />
+                    Voz IA (Plus/Pro)
+                  </DropdownMenuItem>
+                )}
+                {voiceMode === 'ai' && canUseIAVoice && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                      {plan === 'pro' ? '25 hrs/mes' : '15 hrs/mes'} de voz IA incluidas
+                    </div>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Center: Skip Back + Play/Pause + Skip Forward */}
@@ -2301,6 +2495,7 @@ function ReaderTab() {
                     {showUpgradeModal === 'sleep' && 'Temporizador de sueño'}
                     {showUpgradeModal === 'speed' && 'Velocidades avanzadas'}
                     {showUpgradeModal === 'ia-voice' && 'Voz IA'}
+                    {showUpgradeModal === 'explica' && 'Límite de Explica alcanzado'}
                   </p>
                 </div>
               </div>
@@ -2310,6 +2505,7 @@ function ReaderTab() {
                 {showUpgradeModal === 'sleep' && 'Programa que la lectura se detenga automáticamente tras 15, 30, 45 o 60 minutos.'}
                 {showUpgradeModal === 'speed' && 'Ajusta la velocidad de lectura entre 0.5x y 2x para ir a tu ritmo.'}
                 {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
+                {showUpgradeModal === 'explica' && 'Con Plus tienes 10 Explica/mes, y con Pro son ilimitados. Explica te ayuda a entender cualquier texto.'}
               </p>
               <div className="flex gap-2">
                 <Button

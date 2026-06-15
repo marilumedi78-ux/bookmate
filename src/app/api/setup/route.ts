@@ -52,6 +52,7 @@ export async function GET() {
     await addColumnIfNotExists('User', 'lsCustomerId', 'TEXT')
     await addColumnIfNotExists('User', 'lsSubscriptionId', 'TEXT')
     await addColumnIfNotExists('User', 'lsVariantId', 'TEXT')
+    await addColumnIfNotExists('User', 'usageMonth', 'TEXT')
     // Also try to add legacy Stripe columns (for migration compat)
     await addColumnIfNotExists('User', 'stripeCustomerId', 'TEXT')
     await addColumnIfNotExists('User', 'stripePriceId', 'TEXT')

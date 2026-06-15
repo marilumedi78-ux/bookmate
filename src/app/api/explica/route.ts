@@ -1,8 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { ensureMonthlyUsageReset, getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
 import ZAI from 'z-ai-web-dev-sdk'
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión para usar Explica' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    // Get user plan info
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, isVip: true },
+    })
+    if (!user) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    const effectivePlan = getEffectivePlan(user.plan, user.isVip)
+    const limits = getPlanLimits(effectivePlan)
+
+    // Check monthly usage limit for Explica
+    const usage = await ensureMonthlyUsageReset(userId)
+    if (limits.maxExplicaPerMonth !== Infinity && usage.explicaUsed >= limits.maxExplicaPerMonth) {
+      return NextResponse.json(
+        {
+          error: `Has alcanzado el límite de ${limits.maxExplicaPerMonth} Explica este mes. Actualiza tu plan para más.`,
+          code: 'USAGE_LIMIT',
+          used: usage.explicaUsed,
+          limit: limits.maxExplicaPerMonth,
+          requiredPlan: effectivePlan === 'free' ? 'plus' : 'pro',
+        },
+        { status: 403 }
+      )
+    }
+
     const { text, mode, bookTitle } = await request.json()
 
     if (!text || typeof text !== 'string') {
@@ -31,7 +69,21 @@ export async function POST(request: NextRequest) {
 
     const explanation = completion.choices[0]?.message?.content || 'No se pudo generar la explicación.'
 
-    return NextResponse.json({ explanation })
+    // Increment usage counter
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        explicaUsed: usage.explicaUsed + 1,
+      },
+    })
+
+    return NextResponse.json({
+      explanation,
+      usage: {
+        explicaUsed: usage.explicaUsed + 1,
+        explicaLimit: limits.maxExplicaPerMonth === Infinity ? null : limits.maxExplicaPerMonth,
+      }
+    })
   } catch (error) {
     console.error('Explica error:', error)
     return NextResponse.json({ error: 'Error al generar explicación' }, { status: 500 })

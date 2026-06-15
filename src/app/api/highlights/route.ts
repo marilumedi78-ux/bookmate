@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
 
 // POST: Create a highlight
 export async function POST(request: NextRequest) {
@@ -22,6 +23,34 @@ export async function POST(request: NextRequest) {
     const book = await db.book.findUnique({ where: { id: bookId }, select: { userId: true } })
     if (!book || book.userId !== userId) {
       return NextResponse.json({ error: 'Libro no encontrado o sin permiso' }, { status: 403 })
+    }
+
+    // Check plan-based highlight limit
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, isVip: true },
+    })
+    if (user) {
+      const effectivePlan = getEffectivePlan(user.plan, user.isVip)
+      const limits = getPlanLimits(effectivePlan)
+
+      if (limits.maxHighlightsPerBook !== Infinity) {
+        const currentCount = await db.highlight.count({
+          where: { userId, bookId },
+        })
+        if (currentCount >= limits.maxHighlightsPerBook) {
+          return NextResponse.json(
+            {
+              error: `Has alcanzado el límite de ${limits.maxHighlightsPerBook} subrayados por libro en el plan Gratis`,
+              code: 'PLAN_LIMIT',
+              used: currentCount,
+              limit: limits.maxHighlightsPerBook,
+              requiredPlan: 'plus',
+            },
+            { status: 403 }
+          )
+        }
+      }
     }
 
     const highlight = await db.highlight.create({

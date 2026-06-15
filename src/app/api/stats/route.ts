@@ -26,8 +26,9 @@ export async function GET() {
 
     const totalBooks = books.length
     const finishedBooks = books.filter(b => b.isFinished).length
-    const totalEstimatedMin = books.reduce((sum, b) => sum + b.estimatedMin, 0)
-    const totalHours = Math.round((totalEstimatedMin / 60) * 10) / 10
+    // Use real reading minutes (from ReadingLog) instead of estimated minutes
+    const totalReadMin = user.totalReadMin || 0
+    const totalHours = Math.round((totalReadMin / 60) * 10) / 10
 
     // Calculate current streak
     const streakDays = user.streakDays

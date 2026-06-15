@@ -1,0 +1,702 @@
+  1662→    let charPos = before
+  1663→
+  1664→    return (
+  1665→      <>
+  1666→        {beforeText}
+  1667→        {sentences.map((sentence, i) => {
+  1668→          const start = charPos
+  1669→          const end = charPos + sentence.length
+  1670→          charPos = end + 1
+  1671→
+  1672→          const isActive = currentCharIndex >= start && currentCharIndex < end
+  1673→
+  1674→          return (
+  1675→            <span
+  1676→              key={i}
+  1677→              id={isActive ? 'tts-active-sentence' : undefined}
+  1678→              className={isActive ? 'highlight-active' : ''}
+  1679→            >
+  1680→              {sentence}{' '}
+  1681→            </span>
+  1682→          )
+  1683→        })}
+  1684→        {afterText}
+  1685→      </>
+  1686→    )
+  1687→  }
+  1688→
+  1689→  const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
+  1690→  const ReadingModeIcon = readingModeIcon
+  1691→
+  1692→  // Calculate the bottom offset for the fixed player bar (tab bar height)
+  1693→  // Tab bar is approximately 60px (py-2.5 + icon + text + border)
+  1694→  const TAB_BAR_HEIGHT = 60
+  1695→
+  1696→  return (
+  1697→    <div className="flex flex-col min-h-0 h-full">
+  1698→      {/* Book title */}
+  1699→      <div className="px-4 py-3 border-b shrink-0">
+  1700→        <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
+  1701→        <p className="text-xs text-muted-foreground">{currentBook.author}</p>
+  1702→      </div>
+  1703→
+  1704→      {/* TTS Status indicators */}
+  1705→      {tts.ttsStatus === 'playing' && (
+  1706→        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
+  1707→          <Volume2 className="size-3.5 text-primary animate-pulse" />
+  1708→          <span className="text-xs text-primary font-medium">Leyendo en voz alta...</span>
+  1709→          <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
+  1710→        </div>
+  1711→      )}
+  1712→
+  1713→      {tts.ttsStatus === 'loading' && (
+  1714→        <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
+  1715→          <Loader2 className="size-3.5 text-primary animate-spin" />
+  1716→          <span className="text-xs text-primary font-medium">Cargando voz...</span>
+  1717→        </div>
+  1718→      )}
+  1719→
+  1720→      {tts.ttsStatus === 'paused' && (
+  1721→        <div className="px-4 py-1.5 bg-muted/50 border-b flex items-center gap-2 shrink-0">
+  1722→          <Pause className="size-3.5 text-muted-foreground" />
+  1723→          <span className="text-xs text-muted-foreground">Pausado</span>
+  1724→        </div>
+  1725→      )}
+  1726→
+  1727→      {/* Sleep Timer indicator */}
+  1728→      {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
+  1729→        <div className="px-4 py-1.5 bg-primary/5 border-b flex items-center gap-2 shrink-0">
+  1730→          <Timer className="size-3.5 text-primary" />
+  1731→          <span className="text-xs text-primary font-medium">
+  1732→            Durmiendo en {Math.floor(sleepTimeLeft / 60)}:{(sleepTimeLeft % 60).toString().padStart(2, '0')}
+  1733→          </span>
+  1734→        </div>
+  1735→      )}
+  1736→
+  1737→      {/* TTS Error */}
+  1738→      {tts.ttsStatus === 'error' && tts.ttsError && (
+  1739→        <div className="px-4 py-2 bg-destructive/10 border-b flex items-start gap-2 shrink-0">
+  1740→          <AlertTriangle className="size-3.5 text-destructive shrink-0 mt-0.5" />
+  1741→          <div className="flex-1">
+  1742→            <span className="text-xs text-destructive font-medium">{tts.ttsError}</span>
+  1743→            <button
+  1744→              className="text-[10px] text-muted-foreground underline ml-2"
+  1745→              onClick={() => { tts.stop(); tts.play(); }}
+  1746→            >
+  1747→              Reintentar
+  1748→            </button>
+  1749→          </div>
+  1750→        </div>
+  1751→      )}
+  1752→
+  1753→      {/* Speech not supported warning */}
+  1754→      {tts.ttsStatus === 'not-supported' && (
+  1755→        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
+  1756→          <AlertTriangle className="size-3.5 text-accent" />
+  1757→          <span className="text-xs text-accent-foreground">Tu navegador no soporta lectura en voz alta</span>
+  1758→        </div>
+  1759→      )}
+  1760→
+  1761→      {/* No voices available warning */}
+  1762→      {speechSupported && !hasVoices && tts.ttsStatus !== 'playing' && tts.ttsStatus !== 'loading' && (
+  1763→        <div className="px-4 py-2 bg-accent/10 border-b flex items-center gap-2 shrink-0">
+  1764→          <AlertTriangle className="size-3.5 text-accent" />
+  1765→          <span className="text-xs text-accent-foreground">Cargando voces... Si no funciona, recarga la página</span>
+  1766→        </div>
+  1767→      )}
+  1768→
+  1769→      {/* Text area - fills remaining space, scrolls independently */}
+  1770→      {/* Extra bottom padding to account for the fixed player bar */}
+  1771→      <ScrollArea className="flex-1 min-h-0 px-4 py-4">
+  1772→        {isLoadingBook ? (
+  1773→          <div className="space-y-3 max-w-2xl mx-auto">
+  1774→            {Array.from({ length: 8 }).map((_, i) => (
+  1775→              <Skeleton key={i} className="h-4 w-full" />
+  1776→            ))}
+  1777→          </div>
+  1778→        ) : readingMode === 'audio' ? (
+  1779→          /* Audio-only mode: show minimal info, no text */
+  1780→          <div className="flex flex-col items-center justify-center py-20 text-center max-w-2xl mx-auto">
+  1781→            <Headphones className="size-16 text-primary/30 mb-6" />
+  1782→            <p className="text-muted-foreground text-lg font-medium mb-2">Modo audio</p>
+  1783→            <p className="text-muted-foreground/70 text-sm mb-8">
+  1784→              Toca play para escuchar{currentBook ? ` "${currentBook.title}"` : ''}
+  1785→            </p>
+  1786→            {currentBook && (
+  1787→              <div className="text-center space-y-1">
+  1788→                <p className="text-foreground font-medium">{currentBook.title}</p>
+  1789→                <p className="text-sm text-muted-foreground">{currentBook.author}</p>
+  1790→                <p className="text-xs text-muted-foreground mt-2">
+  1791→                  {Math.floor(progressPercent)}% completado
+  1792→                </p>
+  1793→              </div>
+  1794→            )}
+  1795→          </div>
+  1796→        ) : (
+  1797→          <div
+  1798→            className={`text-base leading-relaxed max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
+  1799→            onMouseUp={handleTextSelect}
+  1800→            onTouchEnd={handleTextSelect}
+  1801→          >
+  1802→            {renderText()}
+  1803→          </div>
+  1804→        )}
+  1805→      </ScrollArea>
+  1806→
+  1807→      {/* Fixed bottom controls - always visible above tab bar */}
+  1808→      <div
+  1809→        className="fixed left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t"
+  1810→        style={{ bottom: `${TAB_BAR_HEIGHT}px` }}
+  1811→      >
+  1812→        <div className="max-w-2xl mx-auto">
+  1813→          {/* Selection actions */}
+  1814→          {selectedText && readingMode !== 'audio' && (
+  1815→            <motion.div
+  1816→              initial={{ opacity: 0, y: 10 }}
+  1817→              animate={{ opacity: 1, y: 0 }}
+  1818→              className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50"
+  1819→            >
+  1820→              <Button size="sm" variant="outline" onClick={handleHighlight}>
+  1821→                <BookMarked className="size-3.5 mr-1" />
+  1822→                Subrayar
+  1823→              </Button>
+  1824→              <Button size="sm" variant="outline" onClick={handleExplica}>
+  1825→                <Sparkles className="size-3.5 mr-1" />
+  1826→                Explica
+  1827→              </Button>
+  1828→              <Button
+  1829→                size="sm"
+  1830→                variant="ghost"
+  1831→                className="ml-auto"
+  1832→                onClick={() => setSelectedText('')}
+  1833→              >
+  1834→                <X className="size-3.5" />
+  1835→              </Button>
+  1836→            </motion.div>
+  1837→          )}
+  1838→
+  1839→          {/* Highlights count */}
+  1840→          {highlights.length > 0 && (
+  1841→            <div className="px-4 py-1.5 border-b bg-muted/30">
+  1842→              <p className="text-xs text-muted-foreground">
+  1843→                {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
+  1844→              </p>
+  1845→            </div>
+  1846→          )}
+  1847→
+  1848→          {/* Visual mode: simplified controls (no TTS player) */}
+  1849→          {readingMode === 'visual' && (
+  1850→            <div className="px-4 py-3 flex items-center justify-between">
+  1851→              <div className="flex items-center gap-1">
+  1852→                <DropdownMenu>
+  1853→                  <DropdownMenuTrigger asChild>
+  1854→                    <Button variant="ghost" size="icon" className="size-8">
+  1855→                      <ReadingModeIcon className="size-4" />
+  1856→                    </Button>
+  1857→                  </DropdownMenuTrigger>
+  1858→                  <DropdownMenuContent align="start">
+  1859→                    <DropdownMenuLabel>Modo de lectura</DropdownMenuLabel>
+  1860→                    <DropdownMenuSeparator />
+  1861→                    <DropdownMenuItem onClick={() => setReadingMode('visual')}>
+  1862→                      <Eye className="size-4 mr-2" />
+  1863→                      Visual
+  1864→                      {readingMode === 'visual' && <Check className="size-3.5 ml-auto" />}
+  1865→                    </DropdownMenuItem>
+  1866→                    <DropdownMenuItem onClick={() => setReadingMode('audio')}>
+  1867→                      <Ear className="size-4 mr-2" />
+  1868→                      Audio
+  1869→                      {readingMode === 'audio' && <Check className="size-3.5 ml-auto" />}
+  1870→                    </DropdownMenuItem>
+  1871→                    <DropdownMenuItem onClick={() => setReadingMode('both')}>
+  1872→                      <Layers className="size-4 mr-2" />
+  1873→                      Ambos
+  1874→                      {readingMode === 'both' && <Check className="size-3.5 ml-auto" />}
+  1875→                    </DropdownMenuItem>
+  1876→                  </DropdownMenuContent>
+  1877→                </DropdownMenu>
+  1878→              </div>
+  1879→              <div className="flex items-center gap-3">
+  1880→                <span className="text-xs text-muted-foreground">
+  1881→                  {Math.floor(progressPercent)}% leído
+  1882→                </span>
+  1883→              </div>
+  1884→              <div className="flex items-center gap-1">
+  1885→                <DropdownMenu>
+  1886→                  <DropdownMenuTrigger asChild>
+  1887→                    <Button
+  1888→                      variant="ghost"
+  1889→                      size="icon"
+  1890→                      className={`size-8 ${ambientSound ? 'text-primary' : ''}`}
+  1891→                    >
+  1892→                      <Volume2 className="size-4" />
+  1893→                    </Button>
+  1894→                  </DropdownMenuTrigger>
+  1895→                  <DropdownMenuContent align="end" className="w-52">
+  1896→                    <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
+  1897→                    <DropdownMenuSeparator />
+  1898→                    {!canUseAmbientSounds ? (
+  1899→                      <DropdownMenuItem
+  1900→                        className="text-primary"
+  1901→                        onClick={() => setShowUpgradeModal('ambient')}
+  1902→                      >
+  1903→                        <Lock className="size-4 mr-2" />
+  1904→                        Disponible en Plus y Pro
+  1905→                      </DropdownMenuItem>
+  1906→                    ) : (<>
+  1907→                    {AMBIENT_SOUNDS.map((sound) => {
+  1908→                      const SoundIcon = sound.icon
+  1909→                      return (
+  1910→                        <DropdownMenuItem
+  1911→                          key={sound.id}
+  1912→                          onClick={() => setAmbientSound(sound.id)}
+  1913→                          className={ambientSound === sound.id ? 'bg-primary/10' : ''}
+  1914→                        >
+  1915→                          <SoundIcon className="size-4 mr-2" />
+  1916→                          {sound.name}
+  1917→                          {ambientSound === sound.id && <Check className="size-3.5 ml-auto" />}
+  1918→                        </DropdownMenuItem>
+  1919→                      )
+  1920→                    })}
+  1921→                    <DropdownMenuSeparator />
+  1922→                    <DropdownMenuItem onClick={() => setAmbientSound(null)}>
+  1923→                      Silencio
+  1924→                      {ambientSound === null && <Check className="size-3.5 ml-auto" />}
+  1925→                    </DropdownMenuItem>
+  1926→                    {ambientSound && (
+  1927→                      <>
+  1928→                        <DropdownMenuSeparator />
+  1929→                        <div className="px-2 py-2">
+  1930→                          <div className="flex items-center gap-2">
+  1931→                            <Volume2 className="size-3.5 text-muted-foreground shrink-0" />
+  1932→                            <Slider
+  1933→                              value={[ambientVolume * 100]}
+  1934→                              max={100}
+  1935→                              step={5}
+  1936→                              onValueChange={(v) => setAmbientVolume(v[0] / 100)}
+  1937→                              className="flex-1"
+  1938→                            />
+  1939→                            <span className="text-xs text-muted-foreground w-7 text-right">
+  1940→                              {Math.round(ambientVolume * 100)}%
+  1941→                            </span>
+  1942→                          </div>
+  1943→                        </div>
+  1944→                      </>
+  1945→                    )}
+  1946→                    </>)}
+  1947→                  </DropdownMenuContent>
+  1948→                </DropdownMenu>
+  1949→              </div>
+  1950→            </div>
+  1951→          )}
+  1952→
+  1953→          {/* Audio/Both mode: full player controls */}
+  1954→          {readingMode !== 'visual' && (
+  1955→          <div className="px-4 py-3 space-y-2">
+  1956→        {/* Progress slider */}
+  1957→        <div className="flex items-center gap-3">
+  1958→          <span className="text-[11px] text-muted-foreground w-8 text-right">
+  1959→            {Math.floor(progressPercent)}%
+  1960→          </span>
+  1961→          <Slider
+  1962→            value={[progressPercent]}
+  1963→            max={100}
+  1964→            step={0.1}
+  1965→            onValueChange={handleProgressChange}
+  1966→            className="flex-1"
+  1967→          />
+  1968→          <span className="text-[11px] text-muted-foreground w-8">100%</span>
+  1969→        </div>
+  1970→
+  1971→        {/* Main controls - compact row */}
+  1972→        <div className="flex items-center justify-between">
+  1973→          {/* Left: Speed + Mode */}
+  1974→          <div className="flex items-center gap-1">
+  1975→            <DropdownMenu>
+  1976→              <DropdownMenuTrigger asChild>
+  1977→                <Button variant="ghost" size="sm" className="text-xs font-mono h-8">
+  1978→                  {playbackSpeed}x
+  1979→                </Button>
+  1980→              </DropdownMenuTrigger>
+  1981→              <DropdownMenuContent align="start">
+  1982→                <DropdownMenuLabel>Velocidad</DropdownMenuLabel>
+  1983→                <DropdownMenuSeparator />
+  1984→                {(canUseAllSpeeds ? SPEED_OPTIONS : SPEED_OPTIONS_FREE).map((speed) => (
+  1985→                  <DropdownMenuItem
+  1986→                    key={speed}
+  1987→                    onClick={() => setPlaybackSpeed(speed)}
+  1988→                    className={speed === playbackSpeed ? 'bg-primary/10' : ''}
+  1989→                  >
+  1990→                    {speed}x
+  1991→                    {speed === playbackSpeed && <Check className="size-3.5 ml-auto" />}
+  1992→                  </DropdownMenuItem>
+  1993→                ))}
+  1994→                {!canUseAllSpeeds && (
+  1995→                  <>
+  1996→                    <DropdownMenuSeparator />
+  1997→                    <DropdownMenuItem
+  1998→                      className="text-primary"
+  1999→                      onClick={() => setShowUpgradeModal('speed')}
+  2000→                    >
+  2001→                      <Lock className="size-3.5 mr-2" />
+  2002→                      Desbloquear más velocidades
+  2003→                    </DropdownMenuItem>
+  2004→                  </>
+  2005→                )}
+  2006→              </DropdownMenuContent>
+  2007→            </DropdownMenu>
+  2008→
+  2009→            <DropdownMenu>
+  2010→              <DropdownMenuTrigger asChild>
+  2011→                <Button variant="ghost" size="icon" className="size-8">
+  2012→                  <ReadingModeIcon className="size-4" />
+  2013→                </Button>
+  2014→              </DropdownMenuTrigger>
+  2015→              <DropdownMenuContent align="start">
+  2016→                <DropdownMenuLabel>Modo de lectura</DropdownMenuLabel>
+  2017→                <DropdownMenuSeparator />
+  2018→                <DropdownMenuItem onClick={() => setReadingMode('visual')}>
+  2019→                  <Eye className="size-4 mr-2" />
+  2020→                  Visual
+  2021→                  {readingMode === 'visual' && <Check className="size-3.5 ml-auto" />}
+  2022→                </DropdownMenuItem>
+  2023→                <DropdownMenuItem onClick={() => setReadingMode('audio')}>
+  2024→                  <Ear className="size-4 mr-2" />
+  2025→                  Audio
+  2026→                  {readingMode === 'audio' && <Check className="size-3.5 ml-auto" />}
+  2027→                </DropdownMenuItem>
+  2028→                <DropdownMenuItem onClick={() => setReadingMode('both')}>
+  2029→                  <Layers className="size-4 mr-2" />
+  2030→                  Ambos
+  2031→                  {readingMode === 'both' && <Check className="size-3.5 ml-auto" />}
+  2032→                </DropdownMenuItem>
+  2033→              </DropdownMenuContent>
+  2034→            </DropdownMenu>
+  2035→          </div>
+  2036→
+  2037→          {/* Center: Skip Back + Play/Pause + Skip Forward */}
+  2038→          <div className="flex items-center gap-1">
+  2039→            <Button variant="ghost" size="icon" className="size-9" onClick={handleSkipBack}>
+  2040→              <SkipBack className="size-4" />
+  2041→            </Button>
+  2042→            <Button
+  2043→              size="icon"
+  2044→              className="size-12 rounded-full"
+  2045→              onClick={handlePlayPause}
+  2046→            >
+  2047→              {isPlaying ? (
+  2048→                <Pause className="size-5" />
+  2049→              ) : (
+  2050→                <Play className="size-5 ml-0.5" />
+  2051→              )}
+  2052→            </Button>
+  2053→            <Button variant="ghost" size="icon" className="size-9" onClick={handleSkipForward}>
+  2054→              <SkipForward className="size-4" />
+  2055→            </Button>
+  2056→          </div>
+  2057→
+  2058→          {/* Right: Timer + Ambient + Explica */}
+  2059→          <div className="flex items-center gap-1">
+  2060→            <DropdownMenu>
+  2061→              <DropdownMenuTrigger asChild>
+  2062→                <Button
+  2063→                  variant="ghost"
+  2064→                  size="icon"
+  2065→                  className={`size-8 ${sleepTimer ? 'text-primary' : ''}`}
+  2066→                >
+  2067→                  <Timer className="size-4" />
+  2068→                </Button>
+  2069→              </DropdownMenuTrigger>
+  2070→              <DropdownMenuContent align="end">
+  2071→                <DropdownMenuLabel>Temporizador de sueño</DropdownMenuLabel>
+  2072→                <DropdownMenuSeparator />
+  2073→                {!canUseSleepTimer ? (
+  2074→                  <DropdownMenuItem
+  2075→                    className="text-primary"
+  2076→                    onClick={() => setShowUpgradeModal('sleep')}
+  2077→                  >
+  2078→                    <Lock className="size-4 mr-2" />
+  2079→                    Disponible en Plus y Pro
+  2080→                  </DropdownMenuItem>
+  2081→                ) : (<>
+  2082→                {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
+  2083→                  <>
+  2084→                    <div className="px-2 py-2 text-center">
+  2085→                      <span className="text-lg font-mono font-bold text-primary">
+  2086→                        {Math.floor(sleepTimeLeft / 60)}:{(sleepTimeLeft % 60).toString().padStart(2, '0')}
+  2087→                      </span>
+  2088→                      <p className="text-[10px] text-muted-foreground mt-0.5">restantes</p>
+  2089→                    </div>
+  2090→                    <DropdownMenuSeparator />
+  2091→                  </>
+  2092→                )}
+  2093→                {SLEEP_OPTIONS.map((min) => (
+  2094→                  <DropdownMenuItem
+  2095→                    key={min}
+  2096→                    onClick={() => setSleepTimer(min)}
+  2097→                    className={sleepTimer === min ? 'bg-primary/10' : ''}
+  2098→                  >
+  2099→                    {min} min
+  2100→                    {sleepTimer === min && <Check className="size-3.5 ml-auto" />}
+  2101→                  </DropdownMenuItem>
+  2102→                ))}
+  2103→                <DropdownMenuSeparator />
+  2104→                <DropdownMenuItem onClick={() => setSleepTimer(null)}>
+  2105→                  Desactivar
+  2106→                  {sleepTimer === null && <Check className="size-3.5 ml-auto" />}
+  2107→                </DropdownMenuItem>
+  2108→                <DropdownMenuItem
+  2109→                  onClick={() => setSleepTimer(-1)}
+  2110→                  className={sleepTimer === -1 ? 'bg-primary/10' : ''}
+  2111→                >
+  2112→                  Fin de capítulo
+  2113→                  {sleepTimer === -1 && <Check className="size-3.5 ml-auto" />}
+  2114→                </DropdownMenuItem>
+  2115→                </>)}
+  2116→              </DropdownMenuContent>
+  2117→            </DropdownMenu>
+  2118→
+  2119→            <DropdownMenu>
+  2120→              <DropdownMenuTrigger asChild>
+  2121→                <Button
+  2122→                  variant="ghost"
+  2123→                  size="icon"
+  2124→                  className={`size-8 ${ambientSound ? 'text-primary' : ''}`}
+  2125→                >
+  2126→                  <Volume2 className="size-4" />
+  2127→                </Button>
+  2128→              </DropdownMenuTrigger>
+  2129→              <DropdownMenuContent align="end" className="w-52">
+  2130→                <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
+  2131→                <DropdownMenuSeparator />
+  2132→                {!canUseAmbientSounds ? (
+  2133→                  <DropdownMenuItem
+  2134→                    className="text-primary"
+  2135→                    onClick={() => setShowUpgradeModal('ambient')}
+  2136→                  >
+  2137→                    <Lock className="size-4 mr-2" />
+  2138→                    Disponible en Plus y Pro
+  2139→                  </DropdownMenuItem>
+  2140→                ) : (<>
+  2141→                {AMBIENT_SOUNDS.map((sound) => {
+  2142→                  const SoundIcon = sound.icon
+  2143→                  return (
+  2144→                    <DropdownMenuItem
+  2145→                      key={sound.id}
+  2146→                      onClick={() => setAmbientSound(sound.id)}
+  2147→                      className={ambientSound === sound.id ? 'bg-primary/10' : ''}
+  2148→                    >
+  2149→                      <SoundIcon className="size-4 mr-2" />
+  2150→                      {sound.name}
+  2151→                      {ambientSound === sound.id && <Check className="size-3.5 ml-auto" />}
+  2152→                    </DropdownMenuItem>
+  2153→                  )
+  2154→                })}
+  2155→                <DropdownMenuSeparator />
+  2156→                <DropdownMenuItem onClick={() => setAmbientSound(null)}>
+  2157→                  Silencio
+  2158→                  {ambientSound === null && <Check className="size-3.5 ml-auto" />}
+  2159→                </DropdownMenuItem>
+  2160→                {ambientSound && (
+  2161→                  <>
+  2162→                    <DropdownMenuSeparator />
+  2163→                    <div className="px-2 py-2">
+  2164→                      <div className="flex items-center gap-2">
+  2165→                        <Volume2 className="size-3.5 text-muted-foreground shrink-0" />
+  2166→                        <Slider
+  2167→                          value={[ambientVolume * 100]}
+  2168→                          max={100}
+  2169→                          step={5}
+  2170→                          onValueChange={(v) => setAmbientVolume(v[0] / 100)}
+  2171→                          className="flex-1"
+  2172→                        />
+  2173→                        <span className="text-xs text-muted-foreground w-7 text-right">
+  2174→                          {Math.round(ambientVolume * 100)}%
+  2175→                        </span>
+  2176→                      </div>
+  2177→                    </div>
+  2178→                  </>
+  2179→                )}
+  2180→                </>)}
+  2181→              </DropdownMenuContent>
+  2182→            </DropdownMenu>
+  2183→
+  2184→            <Button
+  2185→              variant="ghost"
+  2186→              size="icon"
+  2187→              className="size-8"
+  2188→              onClick={() => { setExplicaResult(null); setShowExplica(true) }}
+  2189→            >
+  2190→              <Sparkles className="size-4" />
+  2191→            </Button>
+  2192→          </div>
+  2193→        </div>
+  2194→        </div>
+  2195→          )}
+  2196→        </div>
+  2197→      </div>
+  2198→
+  2199→      {/* Explica Sheet */}
+  2200→      <Sheet open={showExplica} onOpenChange={setShowExplica}>
+  2201→        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+  2202→          <SheetHeader>
+  2203→            <SheetTitle>BookMate Explica</SheetTitle>
+  2204→            <SheetDescription>
+  2205→              Selecciona una opción para entender mejor el texto
+  2206→            </SheetDescription>
+  2207→          </SheetHeader>
+  2208→
+  2209→          <div className="flex-1 px-4 py-4 space-y-4">
+  2210→            {/* Text input - show selected text or allow manual input */}
+  2211→            {(explicaText || selectedText) ? (
+  2212→              <div className="bg-muted rounded-lg p-3">
+  2213→                <p className="text-xs font-medium text-muted-foreground mb-1">Texto seleccionado:</p>
+  2214→                <p className="text-sm text-foreground italic">
+  2215→                  &ldquo;{explicaText || selectedText}&rdquo;
+  2216→                </p>
+  2217→              </div>
+  2218→            ) : (
+  2219→              <div className="space-y-2">
+  2220→                <p className="text-xs text-muted-foreground">
+  2221→                  Selecciona texto en el libro o escríbelo aquí:
+  2222→                </p>
+  2223→                <textarea
+  2224→                  className="w-full h-28 rounded-lg border bg-background p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+  2225→                  placeholder="Pega o escribe el texto que quieres entender..."
+  2226→                  value={explicaText}
+  2227→                  onChange={(e) => setExplicaText(e.target.value)}
+  2228→                />
+  2229→              </div>
+  2230→            )}
+  2231→
+  2232→            {/* Explica options */}
+  2233→            <div className="space-y-2">
+  2234→              {EXPLICA_OPTIONS.map((option) => {
+  2235→                const OptionIcon = option.icon
+  2236→                const hasText = !!(explicaText || selectedText)
+  2237→                return (
+  2238→                  <Button
+  2239→                    key={option.id}
+  2240→                    variant="outline"
+  2241→                    className="w-full justify-start text-left"
+  2242→                    onClick={() => handleExplicaOption(option)}
+  2243→                    disabled={isExplaining || !hasText}
+  2244→                  >
+  2245→                    <OptionIcon className="size-4 mr-2 shrink-0" />
+  2246→                    {option.label}
+  2247→                    <ChevronRight className="size-4 ml-auto shrink-0 text-muted-foreground" />
+  2248→                  </Button>
+  2249→                )
+  2250→              })}
+  2251→            </div>
+  2252→
+  2253→            {/* Loading */}
+  2254→            {isExplaining && (
+  2255→              <div className="flex items-center justify-center py-6">
+  2256→                <Loader2 className="size-6 animate-spin text-primary" />
+  2257→                <span className="ml-2 text-sm text-muted-foreground">Generando explicación...</span>
+  2258→              </div>
+  2259→            )}
+  2260→
+  2261→            {/* Result */}
+  2262→            {explicaResult && !isExplaining && (
+  2263→              <motion.div
+  2264→                initial={{ opacity: 0, y: 8 }}
+  2265→                animate={{ opacity: 1, y: 0 }}
+  2266→                className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3"
+  2267→              >
+  2268→                <p className="text-sm text-foreground whitespace-pre-wrap">{explicaResult}</p>
+  2269→              </motion.div>
+  2270→            )}
+  2271→          </div>
+  2272→        </SheetContent>
+  2273→      </Sheet>
+  2274→
+  2275→      {/* ─── Upgrade Modal ─── */}
+  2276→      <AnimatePresence>
+  2277→        {showUpgradeModal && (
+  2278→          <motion.div
+  2279→            initial={{ opacity: 0 }}
+  2280→            animate={{ opacity: 1 }}
+  2281→            exit={{ opacity: 0 }}
+  2282→            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+  2283→            onClick={() => setShowUpgradeModal(null)}
+  2284→          >
+  2285→            <motion.div
+  2286→              initial={{ scale: 0.9, opacity: 0 }}
+  2287→              animate={{ scale: 1, opacity: 1 }}
+  2288→              exit={{ scale: 0.9, opacity: 0 }}
+  2289→              className="bg-background rounded-2xl p-6 max-w-sm w-full shadow-xl"
+  2290→              onClick={(e) => e.stopPropagation()}
+  2291→            >
+  2292→              <div className="flex items-center gap-3 mb-4">
+  2293→                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+  2294→                  <Crown className="size-6 text-primary" />
+  2295→                </div>
+  2296→                <div>
+  2297→                  <h3 className="font-bold text-foreground">Mejora tu plan</h3>
+  2298→                  <p className="text-sm text-muted-foreground">
+  2299→                    {showUpgradeModal === 'highlights' && 'Límite de subrayados alcanzado'}
+  2300→                    {showUpgradeModal === 'ambient' && 'Sonidos ambientales'}
+  2301→                    {showUpgradeModal === 'sleep' && 'Temporizador de sueño'}
+  2302→                    {showUpgradeModal === 'speed' && 'Velocidades avanzadas'}
+  2303→                    {showUpgradeModal === 'ia-voice' && 'Voz IA'}
+  2304→                  </p>
+  2305→                </div>
+  2306→              </div>
+  2307→              <p className="text-sm text-muted-foreground mb-4">
+  2308→                {showUpgradeModal === 'highlights' && 'Con Plus o Pro puedes hacer subrayados ilimitados en todos tus libros.'}
+  2309→                {showUpgradeModal === 'ambient' && 'Relájate con lluvia, café, fogata, olas y bosque mientras lees.'}
+  2310→                {showUpgradeModal === 'sleep' && 'Programa que la lectura se detenga automáticamente tras 15, 30, 45 o 60 minutos.'}
+  2311→                {showUpgradeModal === 'speed' && 'Ajusta la velocidad de lectura entre 0.5x y 2x para ir a tu ritmo.'}
+  2312→                {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
+  2313→              </p>
+  2314→              <div className="flex gap-2">
+  2315→                <Button
+  2316→                  variant="outline"
+  2317→                  className="flex-1"
+  2318→                  onClick={() => setShowUpgradeModal(null)}
+  2319→                >
+  2320→                  Después
+  2321→                </Button>
+  2322→                <Button
+  2323→                  className="flex-1"
+  2324→                  onClick={() => {
+  2325→                    setShowUpgradeModal(null)
+  2326→                    store.setActiveTab('pricing')
+  2327→                  }}
+  2328→                >
+  2329→                  <Gem className="size-4 mr-1" />
+  2330→                  Ver planes
+  2331→                </Button>
+  2332→              </div>
+  2333→            </motion.div>
+  2334→          </motion.div>
+  2335→        )}
+  2336→      </AnimatePresence>
+  2337→    </div>
+  2338→  )
+  2339→}
+  2340→
+  2341→// ──────────────────────────────────────────────
+  2342→// STATS TAB
+  2343→// ──────────────────────────────────────────────
+  2344→interface StatsData {
+  2345→  totalBooks: number
+  2346→  finishedBooks: number
+  2347→  totalHours: number
+  2348→  totalReadMin: number
+  2349→  streakDays: number
+  2350→  bestStreak: number
+  2351→  lastReadDate: string | null
+  2352→  weeklyData: { day: string; minutes: number; date: string }[]
+  2353→  plan: string
+  2354→  isVip: boolean
+  2355→}
+  2356→
+  2357→interface AchievementData {
+  2358→  id: string
+  2359→  userId: string
+  2360→  type: string
+  2361→  unlockedAt: string
+
+[showing lines 1662-2361 of 3117; use offset=2362 with limit to continue reading]
