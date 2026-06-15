@@ -14,23 +14,27 @@ export async function GET() {
 
     const sql = neon(connectionString)
 
-    // Helper: check if a column exists in a table
-    async function columnExists(table: string, column: string): Promise<boolean> {
-      const result = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = ${table} AND column_name = ${column}
-      `
-      return result.length > 0
-    }
-
-    // Helper: add column if it doesn't exist
-    async function addColumnIfMissing(table: string, column: string, type: string, defaultValue?: string) {
-      const exists = await columnExists(table, column)
-      if (!exists) {
-        const defaultClause = defaultValue ? ` DEFAULT ${defaultValue}` : ''
-        await sql`ALTER TABLE ${sql(table)} ADD COLUMN ${sql(column)} ${sql(type + defaultClause)}`
-        console.log(`Added column ${table}.${column}`)
+    // Helper: add column if it doesn't exist using plain SQL
+    async function addColumnIfMissing(table: string, column: string, typeWithDefault: string) {
+      try {
+        await sql`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = ${table} AND column_name = ${column}
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN %I ${typeWithDefault}', ${table}, ${column});
+            END IF;
+          END $$;
+        `
+      } catch (e) {
+        // Try simpler approach as fallback
+        try {
+          await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS ${sql(column)} ${sql(typeWithDefault)}`
+        } catch {
+          // Column might already exist, ignore
+        }
       }
     }
 
@@ -64,21 +68,21 @@ export async function GET() {
     await addColumnIfMissing('User', 'password', 'TEXT')
     await addColumnIfMissing('User', 'name', 'TEXT')
     await addColumnIfMissing('User', 'avatarUrl', 'TEXT')
-    await addColumnIfMissing('User', 'plan', "TEXT", "'free'")
-    await addColumnIfMissing('User', 'isVip', 'BOOLEAN', 'false')
-    await addColumnIfMissing('User', 'isAdmin', 'BOOLEAN', 'false')
+    await addColumnIfMissing('User', 'plan', "TEXT NOT NULL DEFAULT 'free'")
+    await addColumnIfMissing('User', 'isVip', 'BOOLEAN NOT NULL DEFAULT false')
+    await addColumnIfMissing('User', 'isAdmin', 'BOOLEAN NOT NULL DEFAULT false')
     await addColumnIfMissing('User', 'lsCustomerId', 'TEXT')
     await addColumnIfMissing('User', 'lsSubscriptionId', 'TEXT')
     await addColumnIfMissing('User', 'lsVariantId', 'TEXT')
-    await addColumnIfMissing('User', 'streakDays', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'streakDays', 'INTEGER NOT NULL DEFAULT 0')
     await addColumnIfMissing('User', 'lastReadDate', 'TEXT')
-    await addColumnIfMissing('User', 'totalReadMin', 'INTEGER', '0')
-    await addColumnIfMissing('User', 'iaHoursUsed', 'DOUBLE PRECISION', '0')
-    await addColumnIfMissing('User', 'explicaUsed', 'INTEGER', '0')
-    await addColumnIfMissing('User', 'ocrUsed', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'totalReadMin', 'INTEGER NOT NULL DEFAULT 0')
+    await addColumnIfMissing('User', 'iaHoursUsed', 'DOUBLE PRECISION NOT NULL DEFAULT 0')
+    await addColumnIfMissing('User', 'explicaUsed', 'INTEGER NOT NULL DEFAULT 0')
+    await addColumnIfMissing('User', 'ocrUsed', 'INTEGER NOT NULL DEFAULT 0')
     await addColumnIfMissing('User', 'usageMonth', 'TEXT')
 
-    // 2. Create Books table if not exists
+    // 2. Create Books table
     await sql`
       CREATE TABLE IF NOT EXISTS "books" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -104,11 +108,11 @@ export async function GET() {
     `
 
     await addColumnIfMissing('books', 'fileHash', 'TEXT')
-    await addColumnIfMissing('books', 'coverColor', "TEXT", "'#4DB6AC'")
-    await addColumnIfMissing('books', 'currentCharIdx', 'INTEGER', '0')
-    await addColumnIfMissing('books', 'readChars', 'INTEGER', '0')
-    await addColumnIfMissing('books', 'estimatedMin', 'INTEGER', '0')
-    await addColumnIfMissing('books', 'language', "TEXT", "'es'")
+    await addColumnIfMissing('books', 'coverColor', "TEXT NOT NULL DEFAULT '#4DB6AC'")
+    await addColumnIfMissing('books', 'currentCharIdx', 'INTEGER NOT NULL DEFAULT 0')
+    await addColumnIfMissing('books', 'readChars', 'INTEGER NOT NULL DEFAULT 0')
+    await addColumnIfMissing('books', 'estimatedMin', 'INTEGER NOT NULL DEFAULT 0')
+    await addColumnIfMissing('books', 'language', "TEXT NOT NULL DEFAULT 'es'")
     await addColumnIfMissing('books', 'textContent', 'TEXT')
 
     // Add foreign key for books
@@ -184,9 +188,9 @@ export async function GET() {
       )
     `
 
-    // Verify the User table has all expected columns
+    // List User columns for verification
     const userColumns = await sql`
-      SELECT column_name FROM information_schema.columns WHERE table_name = 'User'
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'User' ORDER BY ordinal_position
     `
     const columnNames = userColumns.map((r: any) => r.column_name)
 
