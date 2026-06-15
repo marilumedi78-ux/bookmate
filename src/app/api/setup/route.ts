@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
 
-// GET /api/setup — Initialize database tables using Neon SQL directly
+// GET /api/setup — Initialize database tables and ensure all columns exist
 export async function GET() {
   try {
     const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
@@ -14,7 +14,27 @@ export async function GET() {
 
     const sql = neon(connectionString)
 
-    // 1. Users table
+    // Helper: check if a column exists in a table
+    async function columnExists(table: string, column: string): Promise<boolean> {
+      const result = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = ${table} AND column_name = ${column}
+      `
+      return result.length > 0
+    }
+
+    // Helper: add column if it doesn't exist
+    async function addColumnIfMissing(table: string, column: string, type: string, defaultValue?: string) {
+      const exists = await columnExists(table, column)
+      if (!exists) {
+        const defaultClause = defaultValue ? ` DEFAULT ${defaultValue}` : ''
+        await sql`ALTER TABLE ${sql(table)} ADD COLUMN ${sql(column)} ${sql(type + defaultClause)}`
+        console.log(`Added column ${table}.${column}`)
+      }
+    }
+
+    // 1. Create User table if not exists
     await sql`
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -40,31 +60,25 @@ export async function GET() {
       )
     `
 
-    // Add missing columns if they don't exist (for existing databases)
-    const addColumnIfNotExists = async (table: string, column: string, type: string) => {
-      try {
-        await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS ${sql(column)} ${sql(type)}`
-      } catch {
-        // Column might already exist, ignore error
-      }
-    }
+    // Ensure ALL User columns exist (for databases created with older schema)
+    await addColumnIfMissing('User', 'password', 'TEXT')
+    await addColumnIfMissing('User', 'name', 'TEXT')
+    await addColumnIfMissing('User', 'avatarUrl', 'TEXT')
+    await addColumnIfMissing('User', 'plan', "TEXT", "'free'")
+    await addColumnIfMissing('User', 'isVip', 'BOOLEAN', 'false')
+    await addColumnIfMissing('User', 'isAdmin', 'BOOLEAN', 'false')
+    await addColumnIfMissing('User', 'lsCustomerId', 'TEXT')
+    await addColumnIfMissing('User', 'lsSubscriptionId', 'TEXT')
+    await addColumnIfMissing('User', 'lsVariantId', 'TEXT')
+    await addColumnIfMissing('User', 'streakDays', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'lastReadDate', 'TEXT')
+    await addColumnIfMissing('User', 'totalReadMin', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'iaHoursUsed', 'DOUBLE PRECISION', '0')
+    await addColumnIfMissing('User', 'explicaUsed', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'ocrUsed', 'INTEGER', '0')
+    await addColumnIfMissing('User', 'usageMonth', 'TEXT')
 
-    // Ensure all User columns exist (for databases created with older schema versions)
-    await addColumnIfNotExists('User', 'password', 'TEXT')
-    await addColumnIfNotExists('User', 'avatarUrl', 'TEXT')
-    await addColumnIfNotExists('User', 'isAdmin', 'BOOLEAN DEFAULT false')
-    await addColumnIfNotExists('User', 'lsCustomerId', 'TEXT')
-    await addColumnIfNotExists('User', 'lsSubscriptionId', 'TEXT')
-    await addColumnIfNotExists('User', 'lsVariantId', 'TEXT')
-    await addColumnIfNotExists('User', 'streakDays', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('User', 'lastReadDate', 'TEXT')
-    await addColumnIfNotExists('User', 'totalReadMin', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('User', 'iaHoursUsed', 'DOUBLE PRECISION DEFAULT 0')
-    await addColumnIfNotExists('User', 'explicaUsed', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('User', 'ocrUsed', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('User', 'usageMonth', 'TEXT')
-
-    // 2. Books table
+    // 2. Create Books table if not exists
     await sql`
       CREATE TABLE IF NOT EXISTS "books" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -89,24 +103,21 @@ export async function GET() {
       )
     `
 
-    // Ensure books columns
-    await addColumnIfNotExists('books', 'fileHash', 'TEXT')
-    await addColumnIfNotExists('books', 'coverColor', "TEXT DEFAULT '#4DB6AC'")
-    await addColumnIfNotExists('books', 'currentCharIdx', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('books', 'readChars', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('books', 'estimatedMin', 'INTEGER DEFAULT 0')
-    await addColumnIfNotExists('books', 'language', "TEXT DEFAULT 'es'")
-    await addColumnIfNotExists('books', 'textContent', 'TEXT')
+    await addColumnIfMissing('books', 'fileHash', 'TEXT')
+    await addColumnIfMissing('books', 'coverColor', "TEXT", "'#4DB6AC'")
+    await addColumnIfMissing('books', 'currentCharIdx', 'INTEGER', '0')
+    await addColumnIfMissing('books', 'readChars', 'INTEGER', '0')
+    await addColumnIfMissing('books', 'estimatedMin', 'INTEGER', '0')
+    await addColumnIfMissing('books', 'language', "TEXT", "'es'")
+    await addColumnIfMissing('books', 'textContent', 'TEXT')
 
-    // Add foreign key for books if not exists
+    // Add foreign key for books
     try {
       await sql`ALTER TABLE "books" DROP CONSTRAINT IF EXISTS "books_userId_fkey"`
       await sql`ALTER TABLE "books" ADD CONSTRAINT "books_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    } catch {
-      // Foreign key might already exist
-    }
+    } catch { /* ignore */ }
 
-    // 3. Highlights table
+    // 3. Create Highlights table
     await sql`
       CREATE TABLE IF NOT EXISTS "highlights" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -126,11 +137,9 @@ export async function GET() {
       await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
       await sql`ALTER TABLE "highlights" DROP CONSTRAINT IF EXISTS "highlights_bookId_fkey"`
       await sql`ALTER TABLE "highlights" ADD CONSTRAINT "highlights_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    } catch {
-      // Foreign keys might already exist
-    }
+    } catch { /* ignore */ }
 
-    // 4. Achievements table
+    // 4. Create Achievements table
     await sql`
       CREATE TABLE IF NOT EXISTS "achievements" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,11 +153,9 @@ export async function GET() {
     try {
       await sql`ALTER TABLE "achievements" DROP CONSTRAINT IF EXISTS "achievements_userId_fkey"`
       await sql`ALTER TABLE "achievements" ADD CONSTRAINT "achievements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    } catch {
-      // Foreign key might already exist
-    }
+    } catch { /* ignore */ }
 
-    // 5. Reading logs table
+    // 5. Create Reading logs table
     await sql`
       CREATE TABLE IF NOT EXISTS "reading_logs" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,11 +172,9 @@ export async function GET() {
       await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
       await sql`ALTER TABLE "reading_logs" DROP CONSTRAINT IF EXISTS "reading_logs_bookId_fkey"`
       await sql`ALTER TABLE "reading_logs" ADD CONSTRAINT "reading_logs_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
-    } catch {
-      // Foreign keys might already exist
-    }
+    } catch { /* ignore */ }
 
-    // 6. VIP emails table
+    // 6. Create VIP emails table
     await sql`
       CREATE TABLE IF NOT EXISTS "vip_emails" (
         "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -179,10 +184,17 @@ export async function GET() {
       )
     `
 
+    // Verify the User table has all expected columns
+    const userColumns = await sql`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'User'
+    `
+    const columnNames = userColumns.map((r: any) => r.column_name)
+
     return NextResponse.json({ 
       success: true, 
       message: 'Database tables created/updated successfully!',
-      tables: ['User', 'books', 'highlights', 'achievements', 'reading_logs', 'vip_emails']
+      tables: ['User', 'books', 'highlights', 'achievements', 'reading_logs', 'vip_emails'],
+      userColumns: columnNames,
     })
   } catch (error) {
     console.error('Setup error:', error)
