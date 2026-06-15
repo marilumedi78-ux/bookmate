@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import {
   BookOpen,
   Headphones,
@@ -50,6 +51,13 @@ import {
   Copy,
   LayoutGrid,
   Users,
+  RefreshCw,
+  Download,
+  LogOut,
+  Mail as MailIcon,
+  Lock as LockIcon,
+  Eye as EyeIcon,
+  EyeOff,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -107,6 +115,180 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 // ──────────────────────────────────────────────
+// Login / Register Screen
+// ──────────────────────────────────────────────
+function LoginScreen() {
+  const [isRegister, setIsRegister] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!email.trim() || !password.trim()) {
+      setError('Email y contraseña son requeridos')
+      return
+    }
+
+    if (isRegister && password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      if (isRegister) {
+        // Register first
+        const regRes = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
+        })
+        const regData = await regRes.json()
+
+        if (!regRes.ok) {
+          setError(regData.error || 'Error al crear la cuenta')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Then sign in
+      const result = await signIn('credentials', {
+        email: email.trim(),
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Email o contraseña incorrectos')
+      }
+    } catch {
+      setError('Error de conexión. Inténtalo de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-sm"
+      >
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <BookMateLogo size={64} />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">BookMate</h1>
+          <p className="text-muted-foreground text-sm mt-1">Tu Compañero de Libros</p>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-center">
+              {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isRegister && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Nombre</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Tu nombre (opcional)"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Email</label>
+                <div className="relative">
+                  <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9"
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Contraseña</label>
+                <div className="relative">
+                  <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9 pr-9"
+                    autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <EyeIcon className="size-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2"
+                >
+                  {error}
+                </motion.p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                ) : null}
+                {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center pb-4">
+            <button
+              onClick={() => { setIsRegister(!isRegister); setError('') }}
+              className="text-sm text-primary hover:underline"
+            >
+              {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+            </button>
+          </CardFooter>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          Al registrarte aceptas nuestros términos de servicio
+        </p>
+      </motion.div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
 const AMBIENT_SOUNDS = [
@@ -118,6 +300,7 @@ const AMBIENT_SOUNDS = [
 ]
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const SPEED_OPTIONS_FREE = [1] // Free plan: only 1x speed
 const SLEEP_OPTIONS = [15, 30, 45, 60]
 
 const EXPLICA_OPTIONS = [
@@ -156,6 +339,7 @@ function darkenHex(hex: string, amount = 0.3): string {
 // Main Page Component
 // ──────────────────────────────────────────────
 export default function Home() {
+  const { data: session, status: authStatus } = useSession()
   const {
     activeTab,
     setActiveTab,
@@ -166,6 +350,21 @@ export default function Home() {
   const { setTheme } = useTheme()
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  // Handle checkout success/cancel from Stripe redirect
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'success') {
+      // Clean URL
+      window.history.replaceState({}, '/', '/')
+      // Force session refresh to get updated plan
+      // The session will automatically update via NextAuth
+    }
+    if (params.get('checkout') === 'cancel') {
+      window.history.replaceState({}, '/', '/')
+    }
+  }, [])
 
   // Capture the beforeinstallprompt event
   useEffect(() => {
@@ -197,6 +396,105 @@ export default function Home() {
     localStorage.setItem('bookmate-install-dismissed', 'true')
   }, [])
 
+  // ── Update Detection ──
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+
+    // Check if there's already a waiting service worker on load
+    const checkExistingWorker = () => {
+      const reg = navigator.serviceWorker.controller
+      // If there's no controller, this is the first load
+    }
+
+    // Listen for service worker updates
+    navigator.serviceWorker.ready.then((registration) => {
+      // Check if there's already a waiting worker
+      if (registration.waiting) {
+        setNewWorker(registration.waiting)
+        setUpdateAvailable(true)
+      }
+
+      // Listen for new service workers
+      registration.addEventListener('updatefound', () => {
+        const newSW = registration.installing
+        if (!newSW) return
+
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version installed and waiting!
+            setNewWorker(newSW)
+            setUpdateAvailable(true)
+          }
+        })
+      })
+
+      // Periodically check for updates every 5 minutes
+      const interval = setInterval(() => {
+        registration.update().catch(() => {})
+      }, 5 * 60 * 1000)
+
+      return () => clearInterval(interval)
+    })
+
+    // Also listen for controller change (SW took over)
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
+    })
+
+    checkExistingWorker()
+  }, [])
+
+  // Also poll the /api/version endpoint every 5 minutes to detect deploys
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let currentVersion: string | null = null
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (!currentVersion) {
+            currentVersion = data.version
+            return
+          }
+          if (data.version !== currentVersion) {
+            // New version detected on server — force SW update check
+            if ('serviceWorker' in navigator) {
+              const reg = await navigator.serviceWorker.getRegistration()
+              if (reg) {
+                await reg.update()
+              }
+            }
+          }
+        }
+      } catch {
+        // Silently fail — no internet or similar
+      }
+    }
+
+    checkVersion()
+    const interval = setInterval(checkVersion, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleUpdate = useCallback(() => {
+    if (!newWorker) return
+    // Tell the waiting service worker to skip waiting and activate
+    newWorker.postMessage({ type: 'SKIP_WAITING' })
+    // The controllerchange event will reload the page
+  }, [newWorker])
+
+  const handleDismissUpdate = useCallback(() => {
+    setUpdateAvailable(false)
+  }, [])
+
   const handleDarkToggle = useCallback(() => {
     const newDark = !isDarkMode
     setIsDarkMode(newDark)
@@ -209,6 +507,29 @@ export default function Home() {
     { id: 'stats', label: 'Stats', icon: BarChart3 },
     { id: 'pricing', label: 'Pro', icon: Gem },
   ]
+
+  // Show login screen if not authenticated
+  // Dev bypass: skip login when ?dev=1 query param is present
+  const [devBypass, setDevBypass] = useState(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === '1') {
+      return true
+    }
+    return false
+  })
+  if (authStatus === 'loading' && !devBypass) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <BookMateLogo size={64} />
+          <Loader2 className="size-6 animate-spin text-primary" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!session && !devBypass) {
+    return <LoginScreen />
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -240,6 +561,36 @@ export default function Home() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Update Available Banner */}
+        <AnimatePresence>
+          {updateAvailable && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-3 flex items-center gap-3">
+                <div className="size-9 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <RefreshCw className="size-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">Nueva versión disponible</p>
+                  <p className="text-xs text-muted-foreground">Actualiza para disfrutar las últimas mejoras</p>
+                </div>
+                <Button size="sm" onClick={handleUpdate} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Download className="size-3.5 mr-1" />
+                  Actualizar
+                </Button>
+                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissUpdate}>
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── HEADER ── */}
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
           <div className="flex items-center justify-between px-4 h-14">
@@ -938,7 +1289,18 @@ function ReaderTab() {
     setIsExplaining,
     isLoadingBook,
     setIsLoadingBook,
+    userPlan,
+    isVip,
   } = store
+
+  // Plan-based feature access
+  const plan = isVip ? 'pro' : userPlan
+  const canUseAmbientSounds = plan !== 'free'
+  const canUseSleepTimer = plan !== 'free'
+  const canUseAllSpeeds = plan !== 'free'
+  const maxHighlightsPerBook = plan === 'free' ? 5 : Infinity
+  const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
+  const canUseIAVoice = plan !== 'free'
 
   // TTS engine
   const tts = useTTS()
@@ -949,9 +1311,68 @@ function ReaderTab() {
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
   const [selectedText, setSelectedText] = useState('')
   const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState<string | null>(null) // feature name
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sleepEndTimeRef = useRef<number | null>(null)
+
+  // ─── Reading time tracking ───
+  const readingStartRef = useRef<number | null>(null)
+  const readingMinutesAccumRef = useRef(0)
+  const readingLogTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Start tracking reading time when book is opened and reading
+  useEffect(() => {
+    if (currentBook && isPlaying) {
+      readingStartRef.current = Date.now()
+      // Accumulate reading time every 30 seconds and send to server every 2 minutes
+      readingLogTimerRef.current = setInterval(() => {
+        const now = Date.now()
+        if (readingStartRef.current) {
+          const elapsedMin = (now - readingStartRef.current) / 60000
+          readingMinutesAccumRef.current += elapsedMin
+          readingStartRef.current = now
+        }
+        // Send to server every ~2 minutes of accumulated time
+        if (readingMinutesAccumRef.current >= 2 && currentBook) {
+          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+          readingMinutesAccumRef.current = 0
+          fetch('/api/reading-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
+          }).catch(() => {})
+        }
+      }, 30000) // check every 30s
+    } else {
+      // Not playing — save any accumulated time
+      if (readingStartRef.current && currentBook) {
+        const elapsedMin = (Date.now() - readingStartRef.current) / 60000
+        readingMinutesAccumRef.current += elapsedMin
+        readingStartRef.current = null
+        // Send if we have at least 1 minute accumulated
+        if (readingMinutesAccumRef.current >= 1) {
+          const minutesToSend = Math.round(readingMinutesAccumRef.current)
+          readingMinutesAccumRef.current = 0
+          fetch('/api/reading-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: currentBook.id, minutes: minutesToSend }),
+          }).catch(() => {})
+        }
+      }
+      if (readingLogTimerRef.current) {
+        clearInterval(readingLogTimerRef.current)
+        readingLogTimerRef.current = null
+      }
+    }
+    return () => {
+      if (readingLogTimerRef.current) {
+        clearInterval(readingLogTimerRef.current)
+        readingLogTimerRef.current = null
+      }
+    }
+  }, [currentBook, isPlaying])
 
   // Fetch highlights when book changes
   useEffect(() => {
@@ -1136,6 +1557,12 @@ function ReaderTab() {
   const handleHighlight = async () => {
     if (!selectedText || !currentBook) return
 
+    // Check plan-based highlight limit
+    if (highlights.length >= maxHighlightsPerBook) {
+      setShowUpgradeModal('highlights')
+      return
+    }
+
     const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
     const actualStart = charStart >= 0 ? charStart : 0
 
@@ -1171,6 +1598,8 @@ function ReaderTab() {
   }
 
   const handleExplica = () => {
+    // Check plan-based Explica limit (we track this loosely on frontend)
+    // The real limit is enforced on the server via explicaUsed counter
     if (selectedText) {
       setExplicaText(selectedText)
     }
@@ -1466,6 +1895,15 @@ function ReaderTab() {
                   <DropdownMenuContent align="end" className="w-52">
                     <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {!canUseAmbientSounds ? (
+                      <DropdownMenuItem
+                        className="text-primary"
+                        onClick={() => setShowUpgradeModal('ambient')}
+                      >
+                        <Lock className="size-4 mr-2" />
+                        Disponible en Plus y Pro
+                      </DropdownMenuItem>
+                    ) : (<>
                     {AMBIENT_SOUNDS.map((sound) => {
                       const SoundIcon = sound.icon
                       return (
@@ -1505,6 +1943,7 @@ function ReaderTab() {
                         </div>
                       </>
                     )}
+                    </>)}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1542,7 +1981,7 @@ function ReaderTab() {
               <DropdownMenuContent align="start">
                 <DropdownMenuLabel>Velocidad</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {SPEED_OPTIONS.map((speed) => (
+                {(canUseAllSpeeds ? SPEED_OPTIONS : SPEED_OPTIONS_FREE).map((speed) => (
                   <DropdownMenuItem
                     key={speed}
                     onClick={() => setPlaybackSpeed(speed)}
@@ -1552,6 +1991,18 @@ function ReaderTab() {
                     {speed === playbackSpeed && <Check className="size-3.5 ml-auto" />}
                   </DropdownMenuItem>
                 ))}
+                {!canUseAllSpeeds && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-primary"
+                      onClick={() => setShowUpgradeModal('speed')}
+                    >
+                      <Lock className="size-3.5 mr-2" />
+                      Desbloquear más velocidades
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1619,6 +2070,15 @@ function ReaderTab() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Temporizador de sueño</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {!canUseSleepTimer ? (
+                  <DropdownMenuItem
+                    className="text-primary"
+                    onClick={() => setShowUpgradeModal('sleep')}
+                  >
+                    <Lock className="size-4 mr-2" />
+                    Disponible en Plus y Pro
+                  </DropdownMenuItem>
+                ) : (<>
                 {sleepTimeLeft !== null && sleepTimer && sleepTimer > 0 && (
                   <>
                     <div className="px-2 py-2 text-center">
@@ -1652,6 +2112,7 @@ function ReaderTab() {
                   Fin de capítulo
                   {sleepTimer === -1 && <Check className="size-3.5 ml-auto" />}
                 </DropdownMenuItem>
+                </>)}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1668,6 +2129,15 @@ function ReaderTab() {
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>Sonido ambiental</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {!canUseAmbientSounds ? (
+                  <DropdownMenuItem
+                    className="text-primary"
+                    onClick={() => setShowUpgradeModal('ambient')}
+                  >
+                    <Lock className="size-4 mr-2" />
+                    Disponible en Plus y Pro
+                  </DropdownMenuItem>
+                ) : (<>
                 {AMBIENT_SOUNDS.map((sound) => {
                   const SoundIcon = sound.icon
                   return (
@@ -1707,6 +2177,7 @@ function ReaderTab() {
                     </div>
                   </>
                 )}
+                </>)}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1800,6 +2271,69 @@ function ReaderTab() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ─── Upgrade Modal ─── */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowUpgradeModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-background rounded-2xl p-6 max-w-sm w-full shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Crown className="size-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground">Mejora tu plan</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {showUpgradeModal === 'highlights' && 'Límite de subrayados alcanzado'}
+                    {showUpgradeModal === 'ambient' && 'Sonidos ambientales'}
+                    {showUpgradeModal === 'sleep' && 'Temporizador de sueño'}
+                    {showUpgradeModal === 'speed' && 'Velocidades avanzadas'}
+                    {showUpgradeModal === 'ia-voice' && 'Voz IA'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                {showUpgradeModal === 'highlights' && 'Con Plus o Pro puedes hacer subrayados ilimitados en todos tus libros.'}
+                {showUpgradeModal === 'ambient' && 'Relájate con lluvia, café, fogata, olas y bosque mientras lees.'}
+                {showUpgradeModal === 'sleep' && 'Programa que la lectura se detenga automáticamente tras 15, 30, 45 o 60 minutos.'}
+                {showUpgradeModal === 'speed' && 'Ajusta la velocidad de lectura entre 0.5x y 2x para ir a tu ritmo.'}
+                {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowUpgradeModal(null)}
+                >
+                  Después
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    setShowUpgradeModal(null)
+                    store.setActiveTab('pricing')
+                  }}
+                >
+                  <Gem className="size-4 mr-1" />
+                  Ver planes
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -2052,6 +2586,7 @@ function StatsTab() {
 // PRICING TAB
 // ──────────────────────────────────────────────
 function PricingTab() {
+  const { data: session } = useSession()
   const {
     userPlan,
     setUserPlan,
@@ -2069,19 +2604,28 @@ function PricingTab() {
   const [vipEmails, setVipEmails] = useState<{ id: string; email: string; createdAt: string }[]>([])
   const [newVipEmail, setNewVipEmail] = useState('')
   const [addingVip, setAddingVip] = useState(false)
-  const [currentEmail, setCurrentEmail] = useState('demo@bookmate.app')
+  const [currentEmail, setCurrentEmail] = useState('')
 
-  // Load current user plan on mount
+  // Load current user plan from session
+  useEffect(() => {
+    if (session?.user) {
+      setUserPlan(session.user.plan || 'free')
+      setIsVip(session.user.isVip || false)
+      setCurrentEmail(session.user.email || '')
+    }
+  }, [session, setUserPlan, setIsVip])
+
+  // Also fetch fresh data from /api/auth/me for latest plan info
   useEffect(() => {
     const loadPlan = async () => {
       try {
-        const res = await fetch('/api/stats')
+        const res = await fetch('/api/auth/me')
         if (res.ok) {
           const data = await res.json()
           if (data.user) {
             setUserPlan(data.user.plan || 'free')
             setIsVip(data.user.isVip || false)
-            setCurrentEmail(data.user.email || 'demo@bookmate.app')
+            setCurrentEmail(data.user.email || '')
           }
         }
       } catch {
@@ -2110,15 +2654,52 @@ function PricingTab() {
   }, [isAdminPanelOpen])
 
   const handleSwitchPlan = useCallback(async (plan: 'free' | 'plus' | 'pro') => {
+    if (plan === 'free') {
+      // Downgrade to free - just update via API
+      setSwitchingPlan(true)
+      try {
+        const res = await fetch('/api/plan', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setUserPlan(data.plan)
+          setIsVip(data.isVip || false)
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setSwitchingPlan(false)
+      }
+      return
+    }
+
+    // For Plus or Pro — redirect to Lemon Squeezy Checkout
     setSwitchingPlan(true)
     try {
-      const res = await fetch('/api/plan', {
+      const res = await fetch('/api/lemonsqueezy/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: plan, isAnnual }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.url) {
+          // Redirect to Lemon Squeezy Checkout
+          window.location.href = data.url
+          return
+        }
+      }
+      // If Lemon Squeezy is not configured, fall back to direct plan switch (for testing)
+      const fallbackRes = await fetch('/api/plan', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan }),
       })
-      if (res.ok) {
-        const data = await res.json()
+      if (fallbackRes.ok) {
+        const data = await fallbackRes.json()
         setUserPlan(data.plan)
         setIsVip(data.isVip || false)
       }
@@ -2127,7 +2708,7 @@ function PricingTab() {
     } finally {
       setSwitchingPlan(false)
     }
-  }, [setUserPlan, setIsVip])
+  }, [setUserPlan, setIsVip, isAnnual])
 
   const handleAddVip = useCallback(async () => {
     if (!newVipEmail.trim()) return
@@ -2264,6 +2845,19 @@ function PricingTab() {
                 )}
               </div>
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                >
+                  <LogOut className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Cerrar sesión</TooltipContent>
+            </Tooltip>
           </div>
         </CardContent>
       </Card>
@@ -2307,24 +2901,31 @@ function PricingTab() {
         <p className="text-muted-foreground text-sm">Desbloquea el potencial completo de BookMate</p>
       </div>
 
-      {/* Annual toggle */}
-      <div className="flex items-center justify-center gap-3 mb-6">
-        <span className={`text-sm ${!isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-          Mensual
-        </span>
-        <button
-          onClick={() => setIsAnnual(!isAnnual)}
-          className={`relative w-11 h-6 rounded-full transition-colors ${isAnnual ? 'bg-primary' : 'bg-muted'}`}
-          aria-label={isAnnual ? 'Cambiar a mensual' : 'Cambiar a anual'}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform ${isAnnual ? 'translate-x-5' : ''}`}
-          />
-        </button>
-        <span className={`text-sm ${isAnnual ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-          Anual
-          <Badge className="ml-1.5 bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">Ahorra 36%</Badge>
-        </span>
+      {/* Annual toggle - Segmented Control */}
+      <div className="flex items-center justify-center mb-6">
+        <div className="inline-flex bg-muted rounded-lg p-1 gap-1">
+          <button
+            onClick={() => setIsAnnual(false)}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+              !isAnnual
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Mensual
+          </button>
+          <button
+            onClick={() => setIsAnnual(true)}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+              isAnnual
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Anual
+            <Badge className="bg-primary/10 text-primary border-0 text-[10px] px-1.5 py-0">-36%</Badge>
+          </button>
+        </div>
       </div>
 
       {/* Plan cards */}
@@ -2381,7 +2982,10 @@ function PricingTab() {
                     onClick={() => handleSwitchPlan(plan.id)}
                     disabled={switchingPlan}
                   >
-                    {switchingPlan ? <Loader2 className="size-4 animate-spin" /> : 'Cambiar a este plan'}
+                    {switchingPlan ? <Loader2 className="size-4 animate-spin" /> :
+                      plan.id === 'free' ? 'Cambiar a Gratis' :
+                      `Suscribirse a ${plan.name}`
+                    }
                   </Button>
                 )}
               </CardFooter>

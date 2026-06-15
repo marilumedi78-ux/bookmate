@@ -1,23 +1,18 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-// Helper to ensure demo user exists
-async function ensureDemoUser() {
-  let user = await db.user.findUnique({ where: { email: 'demo@bookmate.app' } })
-  if (!user) {
-    user = await db.user.create({
-      data: { email: 'demo@bookmate.app', name: 'Usuario Demo', plan: 'pro', isVip: true }
-    })
-  }
-  return user
-}
 
 export async function GET() {
   try {
-    const user = await ensureDemoUser()
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
 
     const books = await db.book.findMany({
-      where: { userId: user.id },
+      where: { userId },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -74,7 +75,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            {children}
+            <AuthProvider>
+              {children}
+            </AuthProvider>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
@@ -83,7 +86,9 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                  // Register SW with stable URL — updateViaCache: 'none' ensures
+                  // the browser always checks the network for SW updates
+                  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
                 });
               }
             `,

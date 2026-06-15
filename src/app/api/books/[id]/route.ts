@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function GET(
@@ -6,6 +8,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
+
     const { id } = await params
 
     const book = await db.book.findUnique({
@@ -39,6 +47,10 @@ export async function GET(
       return NextResponse.json({ error: 'Libro no encontrado' }, { status: 404 })
     }
 
+    if (book.userId !== userId) {
+      return NextResponse.json({ error: 'No tienes permiso para ver este libro' }, { status: 403 })
+    }
+
     return NextResponse.json({ book })
   } catch (error) {
     console.error('Get book error:', error)
@@ -51,7 +63,23 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
+
     const { id } = await params
+
+    // Verify ownership
+    const existingBook = await db.book.findUnique({ where: { id }, select: { userId: true } })
+    if (!existingBook) {
+      return NextResponse.json({ error: 'Libro no encontrado' }, { status: 404 })
+    }
+    if (existingBook.userId !== userId) {
+      return NextResponse.json({ error: 'No tienes permiso para modificar este libro' }, { status: 403 })
+    }
+
     const body = await request.json()
 
     const { currentPage, currentCharIdx, readChars, isFinished } = body
@@ -80,7 +108,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 })
+    }
+    const userId = session.user.id
+
     const { id } = await params
+
+    // Verify ownership
+    const existingBook = await db.book.findUnique({ where: { id }, select: { userId: true } })
+    if (!existingBook) {
+      return NextResponse.json({ error: 'Libro no encontrado' }, { status: 404 })
+    }
+    if (existingBook.userId !== userId) {
+      return NextResponse.json({ error: 'No tienes permiso para eliminar este libro' }, { status: 403 })
+    }
 
     // Delete highlights first (cascade should handle this, but explicit is safer)
     await db.highlight.deleteMany({ where: { bookId: id } })
