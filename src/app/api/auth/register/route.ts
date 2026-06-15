@@ -38,10 +38,17 @@ export async function POST(req: NextRequest) {
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // Check if this email is in the VIP list
-    const vipEmail = await db.vipEmail.findUnique({
-      where: { email: normalizedEmail },
-    })
+    // Check if this email is in the VIP list (resilient: if table doesn't exist, skip check)
+    let isVip = false
+    try {
+      const vipEmail = await db.vipEmail.findUnique({
+        where: { email: normalizedEmail },
+      })
+      isVip = !!vipEmail
+    } catch (vipError) {
+      // VIP table might not exist yet — that's OK, just treat as non-VIP
+      console.warn('VIP check failed (table may not exist):', vipError instanceof Error ? vipError.message : vipError)
+    }
 
     // Create user
     const user = await db.user.create({
@@ -49,8 +56,8 @@ export async function POST(req: NextRequest) {
         email: normalizedEmail,
         password: hashedPassword,
         name: name || normalizedEmail.split('@')[0],
-        plan: vipEmail ? 'pro' : 'free',
-        isVip: !!vipEmail,
+        plan: isVip ? 'pro' : 'free',
+        isVip,
       },
     })
 
@@ -67,6 +74,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Registration error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Registration error details:', {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.constructor.name : undefined,
+    })
     return NextResponse.json(
       { error: 'Error al crear la cuenta. Inténtalo de nuevo.', details: errorMessage },
       { status: 500 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useSyncExternalStore } from 'react'
 import { useBookMateStore } from './store'
 
 // Split text into sentences for TTS playback
@@ -72,8 +72,13 @@ export function useTTS() {
   const voicesLoadedRef = useRef(false)
   const MAX_CONSECUTIVE_ERRORS = 3
 
-  // Check if speech synthesis is supported (computed once, not in effect)
-  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+  // Check if speech synthesis is supported using useSyncExternalStore
+  // This avoids hydration mismatches (server returns false, client returns actual value)
+  const speechSupported = useSyncExternalStore(
+    () => () => {}, // no-op subscribe (browser API doesn't change)
+    () => typeof window !== 'undefined' && 'speechSynthesis' in window,
+    () => false // server snapshot
+  )
 
   const [ttsStatus, setTtsStatus] = useState<TTSStatus>(speechSupported ? 'idle' : 'not-supported')
   const [ttsError, setTtsError] = useState<string | null>(speechSupported ? null : 'Tu navegador no soporta lectura en voz alta')
