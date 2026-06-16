@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
-    // Check for duplicates (unless force flag is set)
+    // Check for duplicates by file hash only (unless force flag is set)
+    // Note: We only check by hash because metadata-based matching (title+author)
+    // causes false positives — most PDFs lack author metadata, defaulting to "Desconocido"
     if (!force && fileHash) {
       const existingByHash = await db.book.findFirst({
         where: { userId, fileHash },
@@ -67,25 +69,6 @@ export async function POST(request: NextRequest) {
           matchType: 'hash',
           existingBook: existingByHash,
           message: 'Ya tienes un libro idéntico en tu biblioteca.',
-        })
-      }
-    }
-
-    // Check for duplicate by title+author (metadata match)
-    if (!force) {
-      const existingByMeta = await db.book.findFirst({
-        where: {
-          userId,
-          title,
-          author: author || 'Desconocido',
-        },
-      })
-      if (existingByMeta) {
-        return NextResponse.json({
-          duplicate: true,
-          matchType: 'metadata',
-          existingBook: existingByMeta,
-          message: 'Ya tienes un libro con el mismo título y autor.',
         })
       }
     }
