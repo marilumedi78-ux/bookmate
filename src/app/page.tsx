@@ -65,6 +65,7 @@ import { useTTS } from '@/lib/use-tts'
 import { useAITTS } from '@/lib/use-ai-tts'
 import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
+import { ComponentErrorBoundary } from '@/components/component-error-boundary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -629,7 +630,11 @@ export default function Home() {
               className={activeTab === 'reader' ? 'h-full' : ''}
             >
               {activeTab === 'library' && <LibraryTab />}
-              {activeTab === 'reader' && <ReaderTab />}
+              {activeTab === 'reader' && (
+                <ComponentErrorBoundary name="ReaderTab">
+                  <ReaderTab />
+                </ComponentErrorBoundary>
+              )}
               {activeTab === 'stats' && <StatsTab isLoggedIn={!!session?.user} />}
               {activeTab === 'pricing' && <PricingTab />}
             </motion.div>

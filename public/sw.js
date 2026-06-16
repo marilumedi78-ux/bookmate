@@ -1,6 +1,6 @@
 // BookMate Service Worker — versioned cache with update support
 // CACHE_VERSION is auto-generated at build time
-const CACHE_VERSION = '__BOOKMATE_SW_V__';
+const CACHE_VERSION = '1781568428134';
 const CACHE_NAME = `bookmate-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = ['/'];
