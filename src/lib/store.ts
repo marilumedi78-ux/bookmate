@@ -136,7 +136,7 @@ export const useBookMateStore = create<BookMateState>((set) => ({
 
   // Book text content
   bookText: '',
-  setBookText: (text) => set({ bookText: text }),
+  setBookText: (text) => set({ bookText: text, currentCharIndex: 0, isPlaying: false }),
 
   // Library books
   books: [],

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useBookMateStore } from './store'
 
 // Split text into sentences for AI TTS playback
@@ -100,8 +100,20 @@ export function useAITTS() {
     sentencesRef.current = splitIntoSentences(bookText)
     currentSentenceIndexRef.current = 0
     // Clear audio cache when text changes
+    audioCacheRef.current.forEach((cached) => {
+      try { URL.revokeObjectURL(cached.audio.src) } catch {}
+    })
     audioCacheRef.current.clear()
   }, [bookText])
+
+  // Stop all audio — defined BEFORE playSentence to avoid forward reference issues
+  const stopAll = useCallback(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause()
+      currentAudioRef.current.currentTime = 0
+      currentAudioRef.current = null
+    }
+  }, [])
 
   // Preload a sentence's audio from the server
   const preloadSentence = useCallback(async (idx: number) => {
@@ -268,21 +280,12 @@ export function useAITTS() {
 
       loadAndPlay()
     }
-  }, [preloadSentence, setCurrentCharIndex, setIsPlaying])
+  }, [stopAll, preloadSentence, setCurrentCharIndex, setIsPlaying])
 
   // Keep the ref updated
   useEffect(() => {
     playSentenceRef.current = playSentence
   }, [playSentence])
-
-  // Stop all audio
-  const stopAll = useCallback(() => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause()
-      currentAudioRef.current.currentTime = 0
-      currentAudioRef.current = null
-    }
-  }, [])
 
   // Find sentence index for a character position
   const findSentenceIndex = useCallback((charIdx: number): number => {
@@ -403,7 +406,7 @@ export function useAITTS() {
       stopAll()
       // Revoke all blob URLs
       audioCacheRef.current.forEach((cached) => {
-        URL.revokeObjectURL(cached.audio.src)
+        try { URL.revokeObjectURL(cached.audio.src) } catch {}
       })
       audioCacheRef.current.clear()
     }
@@ -418,13 +421,14 @@ export function useAITTS() {
       currentSentenceIndexRef.current = 0
       setIsPlaying(false)
       audioCacheRef.current.forEach((cached) => {
-        URL.revokeObjectURL(cached.audio.src)
+        try { URL.revokeObjectURL(cached.audio.src) } catch {}
       })
       audioCacheRef.current.clear()
     }
   }, [bookText, stopAll, setIsPlaying])
 
-  return {
+  // Memoize return object to prevent unnecessary re-renders
+  return useMemo(() => ({
     play,
     pause,
     stop,
@@ -434,5 +438,5 @@ export function useAITTS() {
     ttsStatus,
     ttsError,
     iaHoursUsed,
-  }
+  }), [play, pause, stop, skipForward, skipBack, seekTo, ttsStatus, ttsError, iaHoursUsed])
 }

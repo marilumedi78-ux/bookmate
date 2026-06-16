@@ -1326,7 +1326,10 @@ function ReaderTab() {
   // Both TTS engines — switch based on voiceMode
   const browserTts = useTTS()
   const aiTts = useAITTS()
-  const tts = voiceMode === 'ai' && canUseIAVoice ? aiTts : browserTts
+  const tts = useMemo(
+    () => voiceMode === 'ai' && canUseIAVoice ? aiTts : browserTts,
+    [voiceMode, canUseIAVoice, aiTts, browserTts]
+  )
 
   // Handle AI TTS errors (plan limits, etc.)
   useEffect(() => {
@@ -1623,13 +1626,23 @@ function ReaderTab() {
     setSpeechSupported(supported)
     if (!supported) return
     const checkVoices = () => {
-      const voices = window.speechSynthesis.getVoices()
-      setHasVoices(voices.length > 0)
+      try {
+        const voices = window.speechSynthesis.getVoices()
+        setHasVoices(voices.length > 0)
+      } catch {}
     }
     checkVoices()
-    window.speechSynthesis.onvoiceschanged = checkVoices
+    // Use addEventListener instead of overwriting onvoiceschanged
+    try {
+      window.speechSynthesis.addEventListener('voiceschanged', checkVoices)
+    } catch {
+      window.speechSynthesis.onvoiceschanged = checkVoices
+    }
     const timer = setTimeout(checkVoices, 1000)
-    return () => clearTimeout(timer)
+    return () => {
+      try { window.speechSynthesis.removeEventListener('voiceschanged', checkVoices) } catch {}
+      clearTimeout(timer)
+    }
   }, [])
 
   // Empty state
@@ -1651,10 +1664,15 @@ function ReaderTab() {
   const progressPercent = totalChars > 0 ? ((currentCharIndex || 0) / totalChars) * 100 : 0
 
   const handlePlayPause = () => {
-    if (isPlaying) {
-      tts.pause()
-    } else {
-      tts.play()
+    try {
+      if (isPlaying) {
+        tts.pause()
+      } else {
+        tts.play()
+      }
+    } catch (err) {
+      console.error('TTS control error:', err)
+      setIsPlaying(false)
     }
   }
 

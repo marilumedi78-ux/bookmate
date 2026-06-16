@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useBookMateStore } from './store'
 
 // Split text into sentences for TTS playback
@@ -47,6 +47,15 @@ function splitIntoSentences(text: string): { text: string; start: number; end: n
   }
 
   return sentences
+}
+
+// Safe wrapper for speechSynthesis calls
+function safeCancel() {
+  try { window.speechSynthesis.cancel() } catch {}
+}
+
+function safeGetVoices(): SpeechSynthesisVoice[] {
+  try { return window.speechSynthesis.getVoices() } catch { return [] }
 }
 
 export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error' | 'not-supported'
@@ -101,7 +110,7 @@ export function useTTS() {
 
   // Detect speech support on client-side only (avoids hydration mismatch)
   useEffect(() => {
-    const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
+    const supported = typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: detect browser feature on client only
     setSpeechSupported(supported)
     if (!supported) {
@@ -115,7 +124,7 @@ export function useTTS() {
     if (!speechSupported) return
 
     const checkVoices = () => {
-      const voices = window.speechSynthesis.getVoices()
+      const voices = safeGetVoices()
       if (voices.length > 0) {
         voicesLoadedRef.current = true
         console.log(`TTS: ${voices.length} voices loaded. Spanish:`,
@@ -124,12 +133,21 @@ export function useTTS() {
     }
 
     checkVoices()
-    window.speechSynthesis.onvoiceschanged = checkVoices
+    // Use addEventListener instead of overwriting onvoiceschanged
+    try {
+      window.speechSynthesis.addEventListener('voiceschanged', checkVoices)
+    } catch {
+      // Fallback for browsers that don't support addEventListener on speechSynthesis
+      window.speechSynthesis.onvoiceschanged = checkVoices
+    }
     const timer1 = setTimeout(checkVoices, 100)
     const timer2 = setTimeout(checkVoices, 500)
     const timer3 = setTimeout(checkVoices, 2000)
 
     return () => {
+      try {
+        window.speechSynthesis.removeEventListener('voiceschanged', checkVoices)
+      } catch {}
       clearTimeout(timer1)
       clearTimeout(timer2)
       clearTimeout(timer3)
@@ -154,7 +172,7 @@ export function useTTS() {
     return 0
   }, [])
 
-  // Speak a single sentence
+  // Speak a single sentence — wrapped in try-catch to prevent client-side crash
   const speakSentence = useCallback((sentenceIdx: number) => {
     const sentences = sentencesRef.current
 
@@ -165,7 +183,7 @@ export function useTTS() {
     }
 
     if (sentenceIdx >= sentences.length) {
-      window.speechSynthesis.cancel()
+      safeCancel()
       setIsPlaying(false)
       isPlayingRef.current = false
       setTtsStatus('idle')
@@ -177,88 +195,96 @@ export function useTTS() {
     currentSentenceIndexRef.current = sentenceIdx
     setCurrentCharIndex(sentence.start)
 
-    const utterance = new SpeechSynthesisUtterance(sentence.text)
-    utterance.rate = playbackSpeedRef.current
+    try {
+      const utterance = new SpeechSynthesisUtterance(sentence.text)
+      utterance.rate = playbackSpeedRef.current
 
-    // Try to find the best voice
-    const voices = window.speechSynthesis.getVoices()
-    let selectedVoice: SpeechSynthesisVoice | null = null
+      // Try to find the best voice
+      const voices = safeGetVoices()
+      let selectedVoice: SpeechSynthesisVoice | null = null
 
-    if (voices.length > 0) {
-      selectedVoice = voices.find(v => v.lang.startsWith('es') && v.localService) || null
-      if (!selectedVoice) {
-        selectedVoice = voices.find(v => v.lang.startsWith('es')) || null
-      }
-      if (!selectedVoice) {
-        selectedVoice = voices.find(v => v.localService) || null
-      }
-    }
-
-    if (selectedVoice) {
-      utterance.voice = selectedVoice
-      utterance.lang = selectedVoice.lang
-    } else {
-      utterance.lang = 'es-ES'
-    }
-
-    console.log(`TTS: Speaking sentence ${sentenceIdx + 1}/${sentences.length}`,
-      selectedVoice ? `(voice: ${selectedVoice.name})` : '(default voice)')
-
-    utterance.onstart = () => {
-      consecutiveErrorCountRef.current = 0
-      setTtsStatus('playing')
-      setTtsError(null)
-    }
-
-    utterance.onend = () => {
-      if (isPlayingRef.current && !isPausedRef.current) {
-        speakSentenceRef.current(sentenceIdx + 1)
-      }
-    }
-
-    utterance.onerror = (event) => {
-      if (event.error === 'interrupted' || event.error === 'canceled') {
-        return
-      }
-
-      consecutiveErrorCountRef.current += 1
-      console.error(`TTS error: ${event.error} (consecutive: ${consecutiveErrorCountRef.current})`)
-
-      if (consecutiveErrorCountRef.current >= MAX_CONSECUTIVE_ERRORS) {
-        const errorMsg = event.error === 'synthesis-failed'
-          ? 'No se pudo reproducir audio. Intenta recargar la página.'
-          : `Error de voz: ${event.error}`
-
-        window.speechSynthesis.cancel()
-        setIsPlaying(false)
-        isPlayingRef.current = false
-        isPausedRef.current = false
-        setTtsStatus('error')
-        setTtsError(errorMsg)
-        return
-      }
-
-      if (isPlayingRef.current && !isPausedRef.current) {
-        setTimeout(() => speakSentenceRef.current(sentenceIdx + 1), 200)
-      }
-    }
-
-    window.speechSynthesis.cancel()
-
-    const speakDelay = voicesLoadedRef.current ? 10 : 100
-    setTimeout(() => {
-      if (isPlayingRef.current || isPausedRef.current) {
-        try {
-          window.speechSynthesis.speak(utterance)
-        } catch (err) {
-          console.error('TTS speak() threw:', err)
-          setTtsStatus('error')
-          setTtsError('Error al iniciar la lectura. Intenta de nuevo.')
-          setIsPlaying(false)
-          isPlayingRef.current = false
+      if (voices.length > 0) {
+        selectedVoice = voices.find(v => v.lang.startsWith('es') && v.localService) || null
+        if (!selectedVoice) {
+          selectedVoice = voices.find(v => v.lang.startsWith('es')) || null
+        }
+        if (!selectedVoice) {
+          selectedVoice = voices.find(v => v.localService) || null
         }
       }
-    }, speakDelay)
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice
+        utterance.lang = selectedVoice.lang
+      } else {
+        utterance.lang = 'es-ES'
+      }
+
+      console.log(`TTS: Speaking sentence ${sentenceIdx + 1}/${sentences.length}`,
+        selectedVoice ? `(voice: ${selectedVoice.name})` : '(default voice)')
+
+      utterance.onstart = () => {
+        consecutiveErrorCountRef.current = 0
+        setTtsStatus('playing')
+        setTtsError(null)
+      }
+
+      utterance.onend = () => {
+        if (isPlayingRef.current && !isPausedRef.current) {
+          speakSentenceRef.current(sentenceIdx + 1)
+        }
+      }
+
+      utterance.onerror = (event) => {
+        if (event.error === 'interrupted' || event.error === 'canceled') {
+          return
+        }
+
+        consecutiveErrorCountRef.current += 1
+        console.error(`TTS error: ${event.error} (consecutive: ${consecutiveErrorCountRef.current})`)
+
+        if (consecutiveErrorCountRef.current >= MAX_CONSECUTIVE_ERRORS) {
+          const errorMsg = event.error === 'synthesis-failed'
+            ? 'No se pudo reproducir audio. Intenta recargar la página.'
+            : `Error de voz: ${event.error}`
+
+          safeCancel()
+          setIsPlaying(false)
+          isPlayingRef.current = false
+          isPausedRef.current = false
+          setTtsStatus('error')
+          setTtsError(errorMsg)
+          return
+        }
+
+        if (isPlayingRef.current && !isPausedRef.current) {
+          setTimeout(() => speakSentenceRef.current(sentenceIdx + 1), 200)
+        }
+      }
+
+      safeCancel()
+
+      const speakDelay = voicesLoadedRef.current ? 10 : 100
+      setTimeout(() => {
+        if (isPlayingRef.current || isPausedRef.current) {
+          try {
+            window.speechSynthesis.speak(utterance)
+          } catch (err) {
+            console.error('TTS speak() threw:', err)
+            setTtsStatus('error')
+            setTtsError('Error al iniciar la lectura. Intenta de nuevo.')
+            setIsPlaying(false)
+            isPlayingRef.current = false
+          }
+        }
+      }, speakDelay)
+    } catch (err) {
+      console.error('TTS speakSentence() threw:', err)
+      setTtsStatus('error')
+      setTtsError('Error de síntesis de voz. Intenta recargar la página.')
+      setIsPlaying(false)
+      isPlayingRef.current = false
+    }
   }, [speechSupported, setCurrentCharIndex, setIsPlaying])
 
   // Keep the ref updated
@@ -282,13 +308,17 @@ export function useTTS() {
 
     // If paused, resume
     if (isPausedRef.current) {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume()
-        isPausedRef.current = false
-        setIsPlaying(true)
-        isPlayingRef.current = true
-        setTtsStatus('playing')
-        return
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume()
+          isPausedRef.current = false
+          setIsPlaying(true)
+          isPlayingRef.current = true
+          setTtsStatus('playing')
+          return
+        }
+      } catch {
+        // Speech API unavailable, fall through to restart
       }
       isPausedRef.current = false
     }
@@ -313,14 +343,18 @@ export function useTTS() {
     setIsPlaying(false)
     setTtsStatus('paused')
 
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.pause()
-      setTimeout(() => {
-        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-          window.speechSynthesis.cancel()
-        }
-      }, 300)
-    }
+    try {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause()
+        setTimeout(() => {
+          try {
+            if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+              safeCancel()
+            }
+          } catch {}
+        }, 300)
+      }
+    } catch {}
   }, [speechSupported, setIsPlaying])
 
   // Stop playback completely
@@ -331,7 +365,7 @@ export function useTTS() {
     setIsPlaying(false)
     setTtsStatus('idle')
     setTtsError(null)
-    window.speechSynthesis.cancel()
+    safeCancel()
   }, [speechSupported, setIsPlaying])
 
   // Skip forward by ~10 sentences
@@ -339,7 +373,7 @@ export function useTTS() {
     if (!speechSupported) return
 
     const wasPlaying = isPlayingRef.current
-    window.speechSynthesis.cancel()
+    safeCancel()
 
     const nextIdx = Math.min(
       currentSentenceIndexRef.current + 10,
@@ -359,7 +393,7 @@ export function useTTS() {
     if (!speechSupported) return
 
     const wasPlaying = isPlayingRef.current
-    window.speechSynthesis.cancel()
+    safeCancel()
 
     const prevIdx = Math.max(currentSentenceIndexRef.current - 10, 0)
     currentSentenceIndexRef.current = prevIdx
@@ -376,7 +410,7 @@ export function useTTS() {
     if (!speechSupported) return
 
     const wasPlaying = isPlayingRef.current
-    window.speechSynthesis.cancel()
+    safeCancel()
 
     const sentenceIdx = findSentenceIndex(charIdx)
     currentSentenceIndexRef.current = sentenceIdx
@@ -392,7 +426,7 @@ export function useTTS() {
   useEffect(() => {
     if (isPlayingRef.current && speechSupported) {
       const currentIdx = currentSentenceIndexRef.current
-      window.speechSynthesis.cancel()
+      safeCancel()
       isPausedRef.current = false
       setTimeout(() => speakSentenceRef.current(currentIdx), 150)
     }
@@ -401,16 +435,14 @@ export function useTTS() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel()
-      }
+      safeCancel()
     }
   }, [])
 
   // Stop playing when book text changes (direct cancel, no setState in effect)
   useEffect(() => {
     if (bookText && speechSupported) {
-      window.speechSynthesis.cancel()
+      safeCancel()
       isPlayingRef.current = false
       isPausedRef.current = false
       currentSentenceIndexRef.current = 0
@@ -419,7 +451,8 @@ export function useTTS() {
     }
   }, [bookText, speechSupported, setIsPlaying])
 
-  return {
+  // Memoize return object to prevent unnecessary re-renders
+  return useMemo(() => ({
     play,
     pause,
     stop,
@@ -428,5 +461,5 @@ export function useTTS() {
     seekTo,
     ttsStatus,
     ttsError,
-  }
+  }), [play, pause, stop, skipForward, skipBack, seekTo, ttsStatus, ttsError])
 }
