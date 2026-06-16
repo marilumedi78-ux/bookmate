@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useBookMateStore } from './store'
 
 // Split text into sentences for TTS playback
@@ -72,16 +72,11 @@ export function useTTS() {
   const voicesLoadedRef = useRef(false)
   const MAX_CONSECUTIVE_ERRORS = 3
 
-  // Check if speech synthesis is supported using useSyncExternalStore
-  // This avoids hydration mismatches (server returns false, client returns actual value)
-  const speechSupported = useSyncExternalStore(
-    () => () => {}, // no-op subscribe (browser API doesn't change)
-    () => typeof window !== 'undefined' && 'speechSynthesis' in window,
-    () => false // server snapshot
-  )
-
-  const [ttsStatus, setTtsStatus] = useState<TTSStatus>(speechSupported ? 'idle' : 'not-supported')
-  const [ttsError, setTtsError] = useState<string | null>(speechSupported ? null : 'Tu navegador no soporta lectura en voz alta')
+  // Check if speech synthesis is supported
+  // Use state + effect to avoid hydration mismatch (server doesn't have window)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [ttsStatus, setTtsStatus] = useState<TTSStatus>('idle')
+  const [ttsError, setTtsError] = useState<string | null>(null)
 
   const speakSentenceRef = useRef<(idx: number) => void>(() => {})
 
@@ -103,6 +98,17 @@ export function useTTS() {
     sentencesRef.current = splitIntoSentences(bookText)
     currentSentenceIndexRef.current = 0
   }, [bookText])
+
+  // Detect speech support on client-side only (avoids hydration mismatch)
+  useEffect(() => {
+    const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: detect browser feature on client only
+    setSpeechSupported(supported)
+    if (!supported) {
+      setTtsStatus('not-supported')
+      setTtsError('Tu navegador no soporta lectura en voz alta')
+    }
+  }, [])
 
   // Load voices - CRITICAL for Chrome and mobile browsers
   useEffect(() => {

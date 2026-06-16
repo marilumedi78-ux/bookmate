@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { useSession, signIn, signOut } from 'next-auth/react'
@@ -511,11 +511,12 @@ export default function Home() {
 
   // Show login screen if not authenticated
   // Dev bypass: skip login when ?dev=1 query param is present
-  const devBypass = useSyncExternalStore(
-    () => () => {}, // no-op subscribe
-    () => new URLSearchParams(window.location.search).get('dev') === '1',
-    () => false // server snapshot
-  )
+  const [devBypass, setDevBypass] = useState(false)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: detect query param on client only
+    setDevBypass(new URLSearchParams(window.location.search).get('dev') === '1')
+  }, [])
   if (authStatus === 'loading' && !devBypass) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1607,16 +1608,14 @@ function ReaderTab() {
   }, [sleepTimer, tts, setAmbientSound, setSleepTimer])
 
   // Check if speech synthesis is available and has voices
-  // Use useSyncExternalStore to avoid hydration mismatch
-  const speechSupported = useSyncExternalStore(
-    () => () => {}, // no-op subscribe
-    () => typeof window !== 'undefined' && 'speechSynthesis' in window,
-    () => false // server snapshot
-  )
+  // Use state to avoid hydration mismatch (server doesn't have window)
+  const [speechSupported, setSpeechSupported] = useState(false)
   const [hasVoices, setHasVoices] = useState(false)
 
   useEffect(() => {
-    if (!speechSupported) return
+    const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
+    setSpeechSupported(supported)
+    if (!supported) return
     const checkVoices = () => {
       const voices = window.speechSynthesis.getVoices()
       setHasVoices(voices.length > 0)
@@ -1625,7 +1624,7 @@ function ReaderTab() {
     window.speechSynthesis.onvoiceschanged = checkVoices
     const timer = setTimeout(checkVoices, 1000)
     return () => clearTimeout(timer)
-  }, [speechSupported])
+  }, [])
 
   // Empty state
   if (!currentBook) {
