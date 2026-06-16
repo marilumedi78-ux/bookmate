@@ -1314,6 +1314,15 @@ function ReaderTab() {
   const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
   const canUseIAVoice = plan !== 'free'
 
+  // State declarations - MUST be before effects that use them
+  const [explicaResult, setExplicaResult] = useState<string | null>(null)
+  const [selectedText, setSelectedText] = useState('')
+  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState<string | null>(null) // feature name
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sleepEndTimeRef = useRef<number | null>(null)
+
   // Both TTS engines — switch based on voiceMode
   const browserTts = useTTS()
   const aiTts = useAITTS()
@@ -1333,14 +1342,6 @@ function ReaderTab() {
 
   // Ambient sound engine
   useAmbientSound()
-
-  const [explicaResult, setExplicaResult] = useState<string | null>(null)
-  const [selectedText, setSelectedText] = useState('')
-  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null)
-  const [showUpgradeModal, setShowUpgradeModal] = useState<string | null>(null) // feature name
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const sleepEndTimeRef = useRef<number | null>(null)
 
   // ─── Reading time tracking ───
   // Tracks reading time whenever a book is open (not just when TTS is playing).
