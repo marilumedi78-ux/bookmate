@@ -152,7 +152,14 @@ function LoginScreen() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
         })
-        const regData = await regRes.json()
+        let regData: any
+        try {
+          regData = await regRes.json()
+        } catch {
+          setError('Error del servidor. Inténtalo de nuevo.')
+          setLoading(false)
+          return
+        }
 
         if (!regRes.ok) {
           setError(regData.error || 'Error al crear la cuenta')
