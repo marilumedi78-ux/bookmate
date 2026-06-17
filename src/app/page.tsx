@@ -365,11 +365,41 @@ export default function Home() {
     setActiveTab,
     isDarkMode,
     setIsDarkMode,
+    setUserPlan,
+    setIsVip,
   } = useBookMateStore()
 
   const { setTheme } = useTheme()
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  // ── CRITICAL: Load user plan from /api/auth/me on login ──
+  // This ensures isVip/userPlan are set globally, not just in Stats/Pricing tabs
+  // Without this, ReaderTab shows "Voz IA (Plus/Pro)" locked even for Pro/VIP users
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || !session?.user) return
+
+    // First, set from session (available immediately from JWT)
+    if (session.user.plan) setUserPlan(session.user.plan as 'free' | 'plus' | 'pro')
+    if (session.user.isVip) setIsVip(session.user.isVip)
+
+    // Then fetch fresh data from /api/auth/me for latest DB values
+    const loadPlan = async () => {
+      try {
+        const res = await fetch('/api/auth/me')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.user) {
+            setUserPlan(data.user.plan || 'free')
+            setIsVip(data.user.isVip || false)
+          }
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    loadPlan()
+  }, [authStatus, session, setUserPlan, setIsVip])
 
   // Handle checkout success/cancel from Stripe redirect
   useEffect(() => {
