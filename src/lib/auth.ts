@@ -3,6 +3,9 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { db } from '@/lib/db'
 
+// Fallback secret for development — Vercel should set NEXTAUTH_SECRET in production
+const FALLBACK_SECRET = 'bookmate-dev-secret-do-not-use-in-prod-7f8a9b2c3e1d'
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -80,5 +83,6 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Use env secret if available, otherwise fallback (for dev only)
+  secret: process.env.NEXTAUTH_SECRET || FALLBACK_SECRET,
 }
