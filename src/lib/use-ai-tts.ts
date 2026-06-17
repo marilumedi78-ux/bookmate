@@ -65,6 +65,7 @@ export function useAITTS() {
     playbackSpeed,
     currentCharIndex,
     setCurrentCharIndex,
+    selectedAIVoice,
   } = useBookMateStore()
 
   const sentencesRef = useRef<{ text: string; start: number; end: number }[]>([])
@@ -77,6 +78,7 @@ export function useAITTS() {
   const audioCacheRef = useRef<Map<number, CachedAudio>>(new Map())
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const preloadQueueRef = useRef<Set<number>>(new Set())
+  const selectedAIVoiceRef = useRef<string>('tongtong')
 
   const [ttsStatus, setTtsStatus] = useState<AI_TTS_Status>('idle')
   const [ttsError, setTtsError] = useState<string | null>(null)
@@ -106,6 +108,18 @@ export function useAITTS() {
     audioCacheRef.current.clear()
   }, [bookText])
 
+  // Keep selected AI voice ref in sync, and clear cache when voice changes
+  useEffect(() => {
+    if (selectedAIVoiceRef.current !== selectedAIVoice) {
+      selectedAIVoiceRef.current = selectedAIVoice
+      // Clear cached audio since the voice changed
+      audioCacheRef.current.forEach((cached) => {
+        try { URL.revokeObjectURL(cached.audio.src) } catch {}
+      })
+      audioCacheRef.current.clear()
+    }
+  }, [selectedAIVoice])
+
   // Stop all audio — defined BEFORE playSentence to avoid forward reference issues
   const stopAll = useCallback(() => {
     if (currentAudioRef.current) {
@@ -128,7 +142,7 @@ export function useAITTS() {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: sentence.text }),
+        body: JSON.stringify({ text: sentence.text, voice: selectedAIVoiceRef.current }),
       })
 
       if (!res.ok) {

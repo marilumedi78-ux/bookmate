@@ -8,7 +8,7 @@ export const PLAN_LIMITS = {
     maxHighlightsPerBook: 5,
     maxExplicaPerMonth: 5,
     maxIaVoiceHoursPerMonth: 0,
-    canUseAmbientSounds: false,
+    canUseAmbientSounds: true,
     canUseSleepTimer: false,
     canUseAllSpeeds: false,
     canUseIAVoice: false,

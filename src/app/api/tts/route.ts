@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { text, speed } = await request.json()
+    const { text, speed, voice } = await request.json()
 
     // Check speed restriction: free users can only use speed 1.0
     if (speed && speed !== 1 && !limits.canUseAllSpeeds) {
@@ -62,13 +62,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Se requiere texto para generar audio' }, { status: 400 })
     }
 
+    // Validate voice parameter — only allow known voices
+    const ALLOWED_VOICES = ['tongtong', 'chuichui', 'xiaochen', 'jam', 'kazi', 'douji', 'luodo']
+    const selectedVoice = voice && ALLOWED_VOICES.includes(voice) ? voice : 'tongtong'
+
     const truncatedText = text.slice(0, 4096)
 
     const zai = await ZAI.create()
 
     const audioBuffer = await zai.tts.create({
       text: truncatedText,
-      voice: 'alloy',
+      voice: selectedVoice,
     })
 
     // Estimate audio duration: average speech rate ~150 words/min, ~5 chars per word in Spanish

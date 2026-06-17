@@ -78,6 +78,14 @@ interface BookMateState {
   voiceMode: VoiceMode
   setVoiceMode: (mode: VoiceMode) => void
 
+  // Selected browser voice URI (for Web Speech API)
+  selectedBrowserVoiceURI: string | null
+  setSelectedBrowserVoiceURI: (uri: string | null) => void
+
+  // Selected AI voice (for /api/tts)
+  selectedAIVoice: string
+  setSelectedAIVoice: (voice: string) => void
+
   // Sleep timer
   sleepTimer: number | null
   setSleepTimer: (min: number | null) => void
@@ -163,6 +171,14 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   // Voice mode
   voiceMode: 'browser',
   setVoiceMode: (mode) => set({ voiceMode: mode }),
+
+  // Selected browser voice URI (persisted to localStorage for consistency)
+  selectedBrowserVoiceURI: null,
+  setSelectedBrowserVoiceURI: (uri) => set({ selectedBrowserVoiceURI: uri }),
+
+  // Selected AI voice — default 'tongtong' (warm, friendly)
+  selectedAIVoice: 'tongtong',
+  setSelectedAIVoice: (voice) => set({ selectedAIVoice: voice }),
 
   // Sleep timer
   sleepTimer: null,

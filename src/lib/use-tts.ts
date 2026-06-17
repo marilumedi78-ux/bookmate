@@ -68,6 +68,7 @@ export function useTTS() {
     playbackSpeed,
     currentCharIndex,
     setCurrentCharIndex,
+    selectedBrowserVoiceURI,
   } = useBookMateStore()
 
   const sentencesRef = useRef<{ text: string; start: number; end: number }[]>([])
@@ -79,6 +80,7 @@ export function useTTS() {
   const bookTextRef = useRef('')
   const consecutiveErrorCountRef = useRef(0)
   const voicesLoadedRef = useRef(false)
+  const selectedBrowserVoiceURIRef = useRef<string | null>(null)
   const MAX_CONSECUTIVE_ERRORS = 3
 
   // Check if speech synthesis is supported
@@ -107,6 +109,11 @@ export function useTTS() {
     sentencesRef.current = splitIntoSentences(bookText)
     currentSentenceIndexRef.current = 0
   }, [bookText])
+
+  // Keep selected voice ref in sync
+  useEffect(() => {
+    selectedBrowserVoiceURIRef.current = selectedBrowserVoiceURI
+  }, [selectedBrowserVoiceURI])
 
   // Detect speech support on client-side only (avoids hydration mismatch)
   useEffect(() => {
@@ -203,7 +210,14 @@ export function useTTS() {
       const voices = safeGetVoices()
       let selectedVoice: SpeechSynthesisVoice | null = null
 
-      if (voices.length > 0) {
+      // 1. If user selected a specific voice, use it
+      const userURI = selectedBrowserVoiceURIRef.current
+      if (userURI) {
+        selectedVoice = voices.find(v => v.voiceURI === userURI) || null
+      }
+
+      // 2. Otherwise, fall back to best Spanish voice
+      if (!selectedVoice && voices.length > 0) {
         selectedVoice = voices.find(v => v.lang.startsWith('es') && v.localService) || null
         if (!selectedVoice) {
           selectedVoice = voices.find(v => v.lang.startsWith('es')) || null
@@ -285,7 +299,7 @@ export function useTTS() {
       setIsPlaying(false)
       isPlayingRef.current = false
     }
-  }, [speechSupported, setCurrentCharIndex, setIsPlaying])
+  }, [speechSupported, setCurrentCharIndex, setIsPlaying, selectedBrowserVoiceURI])
 
   // Keep the ref updated
   useEffect(() => {
