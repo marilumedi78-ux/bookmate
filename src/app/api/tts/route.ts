@@ -73,12 +73,29 @@ export async function POST(request: NextRequest) {
 
     // CRITICAL: SDK API is zai.audio.tts.create({ input, voice, ... })
     // NOT zai.tts.create({ text, voice }) — using wrong params causes voice to be ignored
-    const audioResponse = await zai.audio.tts.create({
-      input: truncatedText,
-      voice: selectedVoice,
-      response_format: 'mp3',
-      stream: false,
-    })
+    let audioResponse
+    try {
+      audioResponse = await zai.audio.tts.create({
+        input: truncatedText,
+        voice: selectedVoice,
+        response_format: 'mp3',
+        stream: false,
+      })
+    } catch (ttsErr: any) {
+      console.error('TTS SDK error (mp3):', ttsErr?.message || ttsErr)
+      // Fallback: try with wav format if mp3 fails
+      try {
+        audioResponse = await zai.audio.tts.create({
+          input: truncatedText,
+          voice: selectedVoice,
+          response_format: 'wav',
+          stream: false,
+        })
+      } catch (wavErr: any) {
+        console.error('TTS SDK error (wav fallback):', wavErr?.message || wavErr)
+        throw new Error(`TTS SDK failed: ${ttsErr?.message || 'unknown'} / ${wavErr?.message || 'unknown'}`)
+      }
+    }
 
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
 
@@ -106,6 +123,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('TTS error:', error)
-    return NextResponse.json({ error: 'Error generando audio' }, { status: 500 })
+    const errMsg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: 'Error generando audio', details: errMsg }, { status: 500 })
   }
 }
