@@ -108,19 +108,7 @@ export function useAITTS() {
     audioCacheRef.current.clear()
   }, [bookText])
 
-  // Keep selected AI voice ref in sync, and clear cache when voice changes
-  useEffect(() => {
-    if (selectedAIVoiceRef.current !== selectedAIVoice) {
-      selectedAIVoiceRef.current = selectedAIVoice
-      // Clear cached audio since the voice changed
-      audioCacheRef.current.forEach((cached) => {
-        try { URL.revokeObjectURL(cached.audio.src) } catch {}
-      })
-      audioCacheRef.current.clear()
-    }
-  }, [selectedAIVoice])
-
-  // Stop all audio — defined BEFORE playSentence to avoid forward reference issues
+  // Stop all audio — defined BEFORE any effect/hook that uses it
   const stopAll = useCallback(() => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
@@ -128,6 +116,31 @@ export function useAITTS() {
       currentAudioRef.current = null
     }
   }, [])
+
+  // Keep selected AI voice ref in sync, and clear cache + restart playback when voice changes
+  useEffect(() => {
+    if (selectedAIVoiceRef.current !== selectedAIVoice) {
+      const wasPlaying = isPlayingRef.current
+      const currentIdx = currentSentenceIndexRef.current
+
+      selectedAIVoiceRef.current = selectedAIVoice
+
+      // Stop current audio
+      stopAll()
+
+      // Clear cached audio since the voice changed
+      audioCacheRef.current.forEach((cached) => {
+        try { URL.revokeObjectURL(cached.audio.src) } catch {}
+      })
+      audioCacheRef.current.clear()
+
+      // If was playing, restart from current sentence with new voice
+      if (wasPlaying) {
+        isPausedRef.current = false
+        setTimeout(() => playSentenceRef.current(currentIdx), 200)
+      }
+    }
+  }, [selectedAIVoice, stopAll])
 
   // Preload a sentence's audio from the server
   const preloadSentence = useCallback(async (idx: number) => {

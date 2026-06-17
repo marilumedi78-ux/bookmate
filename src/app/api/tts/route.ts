@@ -66,14 +66,21 @@ export async function POST(request: NextRequest) {
     const ALLOWED_VOICES = ['tongtong', 'chuichui', 'xiaochen', 'jam', 'kazi', 'douji', 'luodo']
     const selectedVoice = voice && ALLOWED_VOICES.includes(voice) ? voice : 'tongtong'
 
-    const truncatedText = text.slice(0, 4096)
+    // SDK limit is 1024 chars per request — truncate to avoid errors
+    const truncatedText = text.slice(0, 1024)
 
     const zai = await ZAI.create()
 
-    const audioBuffer = await zai.tts.create({
-      text: truncatedText,
+    // CRITICAL: SDK API is zai.audio.tts.create({ input, voice, ... })
+    // NOT zai.tts.create({ text, voice }) — using wrong params causes voice to be ignored
+    const audioResponse = await zai.audio.tts.create({
+      input: truncatedText,
       voice: selectedVoice,
+      response_format: 'mp3',
+      stream: false,
     })
+
+    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
 
     // Estimate audio duration: average speech rate ~150 words/min, ~5 chars per word in Spanish
     // So ~750 chars/min. More accurately, TTS is roughly 1 minute per 750 characters.
