@@ -73,29 +73,13 @@ export async function POST(request: NextRequest) {
 
     // CRITICAL: SDK API is zai.audio.tts.create({ input, voice, ... })
     // NOT zai.tts.create({ text, voice }) — using wrong params causes voice to be ignored
-    let audioResponse
-    try {
-      audioResponse = await zai.audio.tts.create({
-        input: truncatedText,
-        voice: selectedVoice,
-        response_format: 'mp3',
-        stream: false,
-      })
-    } catch (ttsErr: any) {
-      console.error('TTS SDK error (mp3):', ttsErr?.message || ttsErr)
-      // Fallback: try with wav format if mp3 fails
-      try {
-        audioResponse = await zai.audio.tts.create({
-          input: truncatedText,
-          voice: selectedVoice,
-          response_format: 'wav',
-          stream: false,
-        })
-      } catch (wavErr: any) {
-        console.error('TTS SDK error (wav fallback):', wavErr?.message || wavErr)
-        throw new Error(`TTS SDK failed: ${ttsErr?.message || 'unknown'} / ${wavErr?.message || 'unknown'}`)
-      }
-    }
+    // NOTE: 'mp3' format is NOT supported by the API — use 'wav' instead
+    const audioResponse = await zai.audio.tts.create({
+      input: truncatedText,
+      voice: selectedVoice,
+      response_format: 'wav',
+      stream: false,
+    })
 
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
 
@@ -112,10 +96,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Return audio as streaming response
+    // Return audio as streaming response (WAV format)
     return new Response(audioBuffer, {
       headers: {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': 'audio/wav',
         'Cache-Control': 'no-cache',
         'X-Ia-Hours-Used': (usage.iaHoursUsed + estimatedHours).toFixed(4),
         'X-Ia-Hours-Limit': limits.maxIaVoiceHoursPerMonth.toString(),
