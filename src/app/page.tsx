@@ -58,6 +58,17 @@ import {
   Lock as LockIcon,
   Eye as EyeIcon,
   EyeOff,
+  Target,
+  Quote,
+  Activity,
+  ArrowDownUp,
+  BookText,
+  CalendarCheck,
+  Pencil,
+  TrendingUp,
+  Smile,
+  Filter,
+  Library,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
@@ -702,7 +713,28 @@ function LibraryTab() {
   const [deleteTarget, setDeleteTarget] = useState<BookItem | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'author'>('grid')
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [progressFilter, setProgressFilter] = useState<'all' | 'reading' | 'unread' | 'finished'>('all')
+  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'progress'>('recent')
+  const [wordOfDay, setWordOfDay] = useState<{ word: string; type: string; meaning: string; example: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch Word of the Day (free for everyone, no auth required)
+  useEffect(() => {
+    let cancelled = false
+    const fetchWord = async () => {
+      try {
+        const res = await fetch('/api/word-of-day')
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setWordOfDay(data)
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    fetchWord()
+    return () => { cancelled = true }
+  }, [])
 
   // Fetch books on mount
   useEffect(() => {
@@ -737,11 +769,36 @@ function LibraryTab() {
     }
   }, [setBooks])
 
-  const filteredBooks = books.filter(
-    (b) =>
-      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.author.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredBooks = useMemo(() => {
+    // 1. Search filter (title / author)
+    let result = books.filter(
+      (b) =>
+        b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        b.author.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    // 2. Progress filter
+    if (progressFilter !== 'all') {
+      result = result.filter((b) => {
+        const pct = b.totalChars > 0 ? b.readChars / b.totalChars : 0
+        if (progressFilter === 'finished') return b.isFinished
+        if (progressFilter === 'reading') return !b.isFinished && pct > 0
+        if (progressFilter === 'unread') return pct === 0 && !b.isFinished
+        return true
+      })
+    }
+    // 3. Sort
+    result = [...result].sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
+      if (sortBy === 'progress') {
+        const pa = a.totalChars > 0 ? a.readChars / a.totalChars : 0
+        const pb = b.totalChars > 0 ? b.readChars / b.totalChars : 0
+        return pb - pa
+      }
+      // recent: by createdAt desc
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+    return result
+  }, [books, searchQuery, progressFilter, sortBy])
 
   const handleOpenBook = useCallback(
     async (book: BookItem) => {
@@ -969,13 +1026,34 @@ function LibraryTab() {
   return (
     <div className="px-4 pt-6">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-foreground">Mi Biblioteca</h1>
         <p className="text-muted-foreground text-sm mt-1">Tus libros, tu ritmo</p>
       </div>
 
+      {/* Word of the Day — free for everyone */}
+      {wordOfDay && (
+        <Card className="mb-4 py-0 overflow-hidden border-primary/20">
+          <div className="flex items-stretch">
+            <div className="w-1.5 bg-primary shrink-0" />
+            <CardContent className="flex-1 py-3 px-4 space-y-1">
+              <div className="flex items-center gap-2">
+                <BookText className="size-4 text-primary shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">Palabra del día</span>
+              </div>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-lg font-bold text-foreground">{wordOfDay.word}</span>
+                <span className="text-xs text-muted-foreground italic">{wordOfDay.type}</span>
+              </div>
+              <p className="text-sm text-muted-foreground leading-snug">{wordOfDay.meaning}</p>
+              <p className="text-xs text-foreground/70 italic leading-snug">“{wordOfDay.example}”</p>
+            </CardContent>
+          </div>
+        </Card>
+      )}
+
       {/* Search + View Toggle */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -985,6 +1063,26 @@ function LibraryTab() {
             className="pl-9"
           />
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="size-10 shrink-0" aria-label="Ordenar">
+              <ArrowDownUp className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Ordenar por</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setSortBy('recent')}>
+              <Clock className="size-4 mr-2" /> Recientes {sortBy === 'recent' && <Check className="size-3.5 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortBy('title')}>
+              <BookOpen className="size-4 mr-2" /> Título {sortBy === 'title' && <Check className="size-3.5 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortBy('progress')}>
+              <TrendingUp className="size-4 mr-2" /> Progreso {sortBy === 'progress' && <Check className="size-3.5 ml-auto" />}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1001,6 +1099,28 @@ function LibraryTab() {
             {viewMode === 'grid' ? 'Agrupar por autor' : 'Vista cuadrícula'}
           </TooltipContent>
         </Tooltip>
+      </div>
+
+      {/* Progress filter chips */}
+      <div className="flex items-center gap-1.5 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
+        {([
+          { id: 'all', label: 'Todos' },
+          { id: 'reading', label: 'Leyendo' },
+          { id: 'unread', label: 'Sin empezar' },
+          { id: 'finished', label: 'Terminados' },
+        ] as const).map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setProgressFilter(f.id)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              progressFilter === f.id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/70'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Loading state */}
@@ -1686,6 +1806,32 @@ function ReaderTab() {
     return 'unknown'
   }
 
+  // ─── AI Summary & Emotion Graph state (must be before early return) ───
+  const [summaryData, setSummaryData] = useState<{
+    keyPoints: string[]
+    quotes: string[]
+    targetReader: string
+  } | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [showSummarySheet, setShowSummarySheet] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+
+  const [emotionsData, setEmotionsData] = useState<{
+    emotions: Array<{ segmentIdx: number; charStart: number; charEnd: number; emotion: string; intensity: number; label: string }>
+    totalChars: number
+  } | null>(null)
+  const [emotionsLoading, setEmotionsLoading] = useState(false)
+  const [showEmotionsSheet, setShowEmotionsSheet] = useState(false)
+  const [emotionsError, setEmotionsError] = useState<string | null>(null)
+
+  // Reset cached AI data when switching books
+  useEffect(() => {
+    setSummaryData(null)
+    setEmotionsData(null)
+    setSummaryError(null)
+    setEmotionsError(null)
+  }, [currentBook?.id])
+
   // Empty state
   if (!currentBook) {
     return (
@@ -1888,16 +2034,118 @@ function ReaderTab() {
   const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
   const ReadingModeIcon = readingModeIcon
 
+  // ─── AI Summary & Emotion Graph (Pro features) — handlers (state declared above early return) ───
+  const canUseAISummary = plan === 'pro'
+  const handleSummary = async () => {
+    if (!currentBook) return
+    if (!canUseAISummary) {
+      setShowUpgradeModal('summary')
+      return
+    }
+    setShowSummarySheet(true)
+    if (summaryData) return // already loaded
+    setSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const res = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId: currentBook.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.code === 'PLAN_LIMIT') {
+          setShowSummarySheet(false)
+          setShowUpgradeModal('summary')
+          return
+        }
+        throw new Error(data.error || 'Error al generar el resumen')
+      }
+      setSummaryData(data)
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : 'Error al generar el resumen')
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
+  const handleEmotions = async () => {
+    if (!currentBook) return
+    if (!canUseAISummary) {
+      setShowUpgradeModal('emotions')
+      return
+    }
+    setShowEmotionsSheet(true)
+    if (emotionsData) return
+    setEmotionsLoading(true)
+    setEmotionsError(null)
+    try {
+      const res = await fetch('/api/emotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId: currentBook.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.code === 'PLAN_LIMIT') {
+          setShowEmotionsSheet(false)
+          setShowUpgradeModal('emotions')
+          return
+        }
+        throw new Error(data.error || 'Error al generar el gráfico de emociones')
+      }
+      setEmotionsData(data)
+    } catch (err) {
+      setEmotionsError(err instanceof Error ? err.message : 'Error al generar el gráfico')
+    } finally {
+      setEmotionsLoading(false)
+    }
+  }
+
   // Calculate the bottom offset for the fixed player bar (tab bar height)
   // Tab bar is approximately 60px (py-2.5 + icon + text + border)
   const TAB_BAR_HEIGHT = 60
 
   return (
     <div className="flex flex-col min-h-0 h-full">
-      {/* Book title */}
+      {/* Book title + AI actions */}
       <div className="px-4 py-3 border-b shrink-0">
-        <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
-        <p className="text-xs text-muted-foreground">{currentBook.author}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-foreground truncate">{currentBook.title}</h2>
+            <p className="text-xs text-muted-foreground">{currentBook.author}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={handleSummary}
+                  aria-label="Resumen IA"
+                >
+                  {canUseAISummary ? <BookText className="size-4" /> : <Lock className="size-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Resumen IA</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={handleEmotions}
+                  aria-label="Gráfico de emociones"
+                >
+                  {canUseAISummary ? <Activity className="size-4" /> : <Lock className="size-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Gráfico de emociones</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
       </div>
 
       {/* TTS Status indicators */}
@@ -2562,6 +2810,118 @@ function ReaderTab() {
         </SheetContent>
       </Sheet>
 
+      {/* ─── AI Summary Sheet ─── */}
+      <Sheet open={showSummarySheet} onOpenChange={setShowSummarySheet}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <BookText className="size-4 text-primary" />
+              Resumen IA
+            </SheetTitle>
+            <SheetDescription>
+              {currentBook?.title}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-8 space-y-5">
+            {summaryLoading && (
+              <div className="flex flex-col items-center gap-3 py-12">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Analizando tu libro con IA...</p>
+                <p className="text-xs text-muted-foreground/70">Esto puede tardar unos segundos</p>
+              </div>
+            )}
+            {summaryError && !summaryLoading && (
+              <div className="py-8 text-center">
+                <AlertTriangle className="size-8 text-accent mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">{summaryError}</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSummaryData(null); handleSummary() }}>
+                  Reintentar
+                </Button>
+              </div>
+            )}
+            {summaryData && !summaryLoading && (
+              <>
+                {/* Key points */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Zap className="size-4 text-primary" />
+                    3 Ideas Clave
+                  </h4>
+                  <ol className="space-y-2">
+                    {summaryData.keyPoints.map((point, i) => (
+                      <li key={i} className="flex gap-2 text-sm text-foreground/90">
+                        <span className="size-5 rounded-full bg-primary/15 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {i + 1}
+                        </span>
+                        <span className="leading-relaxed">{point}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                {/* Quotes */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Quote className="size-4 text-primary" />
+                    5 Citas Memorables
+                  </h4>
+                  <div className="space-y-2">
+                    {summaryData.quotes.map((q, i) => (
+                      <blockquote key={i} className="border-l-2 border-primary/40 pl-3 py-1 text-sm italic text-foreground/80 leading-relaxed">
+                        “{q}”
+                      </blockquote>
+                    ))}
+                  </div>
+                </div>
+                {/* Target reader */}
+                <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/15">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Smile className="size-4 text-primary" />
+                    ¿Para quién es este libro?
+                  </h4>
+                  <p className="text-sm text-foreground/85 leading-relaxed">{summaryData.targetReader}</p>
+                </div>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ─── Emotion Graph Sheet ─── */}
+      <Sheet open={showEmotionsSheet} onOpenChange={setShowEmotionsSheet}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Activity className="size-4 text-primary" />
+              Arco Emocional
+            </SheetTitle>
+            <SheetDescription>
+              {currentBook?.title}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-8 space-y-4">
+            {emotionsLoading && (
+              <div className="flex flex-col items-center gap-3 py-12">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Mapeando las emociones del libro...</p>
+                <p className="text-xs text-muted-foreground/70">Esto puede tardar unos segundos</p>
+              </div>
+            )}
+            {emotionsError && !emotionsLoading && (
+              <div className="py-8 text-center">
+                <AlertTriangle className="size-8 text-accent mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">{emotionsError}</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => { setEmotionsData(null); handleEmotions() }}>
+                  Reintentar
+                </Button>
+              </div>
+            )}
+            {emotionsData && !emotionsLoading && (
+              <EmotionGraphView emotions={emotionsData.emotions} currentCharIndex={currentCharIndex} />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* ─── Upgrade Modal ─── */}
       <AnimatePresence>
         {showUpgradeModal && (
@@ -2593,6 +2953,8 @@ function ReaderTab() {
                     {showUpgradeModal === 'ia-voice' && 'Voz IA'}
                     {showUpgradeModal === 'explica' && 'Límite de Explica alcanzado'}
                     {showUpgradeModal === 'books' && 'Límite de libros alcanzado'}
+                    {showUpgradeModal === 'summary' && 'Resumen IA'}
+                    {showUpgradeModal === 'emotions' && 'Gráfico de emociones'}
                   </p>
                 </div>
               </div>
@@ -2604,6 +2966,8 @@ function ReaderTab() {
                 {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
                 {showUpgradeModal === 'explica' && 'Con Plus tienes 10 Explica/mes, y con Pro son ilimitados. Explica te ayuda a entender cualquier texto.'}
                 {showUpgradeModal === 'books' && 'Con Plus puedes tener hasta 20 libros, y con Pro son ilimitados. Sube todos los libros que quieras.'}
+                {showUpgradeModal === 'summary' && 'Con Pro obtienes un resumen IA de cada libro: 3 ideas clave, 5 citas memorables y para quién es el libro.'}
+                {showUpgradeModal === 'emotions' && 'Con Pro visualiza el arco emocional del libro: un gráfico que muestra cómo cambian las emociones capítulo a capítulo.'}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -2628,6 +2992,114 @@ function ReaderTab() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────
+// EMOTION GRAPH VIEW (used inside ReaderTab's Emotion Sheet)
+// ──────────────────────────────────────────────
+const EMOTION_COLORS: Record<string, string> = {
+  alegría: '#10b981',
+  tristeza: '#3b82f6',
+  tensión: '#ef4444',
+  misterio: '#8b5cf6',
+  esperanza: '#f59e0b',
+  miedo: '#6366f1',
+  amor: '#ec4899',
+  reflexión: '#14b8a6',
+  acción: '#f97316',
+  calma: '#22c55e',
+}
+
+function EmotionGraphView({
+  emotions,
+  currentCharIndex,
+}: {
+  emotions: Array<{ segmentIdx: number; charStart: number; charEnd: number; emotion: string; intensity: number; label: string }>
+  currentCharIndex: number
+}) {
+  if (!emotions || emotions.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-8">No se pudo mapear el arco emocional.</p>
+  }
+
+  const maxIntensity = 10
+  const barWidth = `${100 / emotions.length}%`
+  // Find the segment the user is currently reading
+  const activeIdx = emotions.findIndex((e) => currentCharIndex >= e.charStart && currentCharIndex < e.charEnd)
+
+  return (
+    <div className="space-y-4">
+      {/* Graph */}
+      <div className="flex items-end gap-0.5 h-40 px-1">
+        {emotions.map((e, i) => {
+          const heightPct = (e.intensity / maxIntensity) * 100
+          const color = EMOTION_COLORS[e.emotion] || '#888'
+          const isActive = i === activeIdx
+          return (
+            <Tooltip key={i}>
+              <TooltipTrigger asChild>
+                <div
+                  className="relative rounded-t-sm transition-all cursor-pointer hover:opacity-80"
+                  style={{
+                    width: barWidth,
+                    height: `${heightPct}%`,
+                    backgroundColor: color,
+                    opacity: isActive ? 1 : 0.55,
+                    outline: isActive ? '2px solid currentColor' : 'none',
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <p className="font-semibold capitalize">{e.emotion}</p>
+                <p className="opacity-80">{e.label}</p>
+                <p className="opacity-60">Intensidad: {e.intensity}/10</p>
+              </TooltipContent>
+            </Tooltip>
+          )
+        })}
+      </div>
+      {/* X-axis hint */}
+      <p className="text-[10px] text-muted-foreground text-center -mt-2">Inicio del libro → Final del libro</p>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+        {Array.from(new Set(emotions.map((e) => e.emotion))).map((emotion) => (
+          <div key={emotion} className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: EMOTION_COLORS[emotion] || '#888' }} />
+            <span className="text-xs text-muted-foreground capitalize">{emotion}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Active segment detail */}
+      {activeIdx >= 0 && (
+        <div className="p-3 rounded-lg bg-primary/5 border border-primary/15">
+          <p className="text-xs text-muted-foreground mb-1">Estás aquí</p>
+          <p className="text-sm font-medium text-foreground capitalize flex items-center gap-2">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: EMOTION_COLORS[emotions[activeIdx].emotion] || '#888' }} />
+            {emotions[activeIdx].emotion} · {emotions[activeIdx].label}
+          </p>
+        </div>
+      )}
+
+      {/* Full list */}
+      <div className="space-y-1.5">
+        <h4 className="text-sm font-semibold text-foreground">Recorrido emocional</h4>
+        <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+          {emotions.map((e, i) => (
+            <div
+              key={i}
+              className={`flex items-center gap-2 p-2 rounded-lg text-sm ${i === activeIdx ? 'bg-primary/10' : 'bg-muted/40'}`}
+            >
+              <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: EMOTION_COLORS[e.emotion] || '#888' }} />
+              <span className="font-medium text-foreground capitalize shrink-0 w-20">{e.emotion}</span>
+              <span className="text-muted-foreground truncate flex-1">{e.label}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{e.intensity}/10</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2681,6 +3153,35 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [planLimits, setPlanLimits] = useState<PlanLimitsData | null>(null)
   const [usageData, setUsageData] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
+  // Reading goals state
+  const [goals, setGoals] = useState<{
+    dailyGoalMin: number
+    weeklyGoalDays: number
+    todayMinutes: number
+    weekDaysRead: number
+    dailyProgress: number
+    weeklyProgress: number
+    dailyCompleted: boolean
+    weeklyCompleted: boolean
+  } | null>(null)
+  const [editingGoals, setEditingGoals] = useState(false)
+  const [editDaily, setEditDaily] = useState(20)
+  const [editWeekly, setEditWeekly] = useState(5)
+  const [savingGoals, setSavingGoals] = useState(false)
+
+  const fetchGoals = useCallback(async () => {
+    try {
+      const res = await fetch('/api/goals')
+      if (res.ok) {
+        const data = await res.json()
+        setGoals(data)
+        setEditDaily(data.dailyGoalMin)
+        setEditWeekly(data.weeklyGoalDays)
+      }
+    } catch {
+      // silently fail
+    }
+  }, [])
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -2710,8 +3211,29 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
       }
     }
     fetchStats()
+    fetchGoals()
     return () => { cancelled = true }
-  }, [setIsVip, setUserPlan, isLoggedIn])
+  }, [setIsVip, setUserPlan, isLoggedIn, fetchGoals])
+
+  const handleSaveGoals = async () => {
+    setSavingGoals(true)
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dailyGoalMin: editDaily, weeklyGoalDays: editWeekly }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setGoals(data)
+        setEditingGoals(false)
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingGoals(false)
+    }
+  }
 
   const weeklyData = stats?.weeklyData || []
   const maxMinutes = weeklyData.length > 0
@@ -2816,6 +3338,103 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reading Goals — free for everyone */}
+      {goals && (
+        <Card className="py-4">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="size-4 text-primary" />
+                <CardTitle className="text-base">Metas de lectura</CardTitle>
+              </div>
+              {!editingGoals ? (
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditingGoals(true)}>
+                  <Pencil className="size-3 mr-1" /> Editar
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditingGoals(false)} disabled={savingGoals}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" className="h-7 px-2 text-xs" onClick={handleSaveGoals} disabled={savingGoals}>
+                    {savingGoals ? <Loader2 className="size-3 animate-spin" /> : 'Guardar'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Daily goal */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="size-3.5" />
+                  Meta diaria
+                </span>
+                {editingGoals ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={480}
+                      value={editDaily}
+                      onChange={(e) => setEditDaily(Math.max(1, Math.min(480, Number(e.target.value) || 1)))}
+                      className="h-7 w-16 text-right text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">min</span>
+                  </div>
+                ) : (
+                  <span className="font-medium text-foreground">
+                    {goals.todayMinutes} / {goals.dailyGoalMin} min
+                    {goals.dailyCompleted && <CheckCircle2 className="size-3.5 text-emerald-500 inline ml-1.5" />}
+                  </span>
+                )}
+              </div>
+              {!editingGoals && (
+                <Progress value={goals.dailyProgress * 100} className="h-2" />
+              )}
+            </div>
+            {/* Weekly goal */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <CalendarCheck className="size-3.5" />
+                  Meta semanal
+                </span>
+                {editingGoals ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={7}
+                      value={editWeekly}
+                      onChange={(e) => setEditWeekly(Math.max(1, Math.min(7, Number(e.target.value) || 1)))}
+                      className="h-7 w-14 text-right text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">días</span>
+                  </div>
+                ) : (
+                  <span className="font-medium text-foreground">
+                    {goals.weekDaysRead} / {goals.weeklyGoalDays} días
+                    {goals.weeklyCompleted && <CheckCircle2 className="size-3.5 text-emerald-500 inline ml-1.5" />}
+                  </span>
+                )}
+              </div>
+              {!editingGoals && (
+                <div className="flex gap-1">
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 h-2 rounded-full ${i < goals.weekDaysRead ? 'bg-primary' : 'bg-muted'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Weekly chart */}
       <Card className="py-4">

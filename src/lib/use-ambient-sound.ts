@@ -2,94 +2,62 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useBookMateStore } from './store'
+import { AmbientEngine, type AmbientSoundType } from './ambient-engine'
 
-type SoundType = 'rain' | 'cafe' | 'fire' | 'waves' | 'forest'
+// Valid ambient sound types (procedurally synthesized — no MP3 files needed)
+const VALID_SOUNDS: AmbientSoundType[] = ['rain', 'cafe', 'fire', 'waves', 'forest']
 
-// Map sound IDs to their MP3 file paths
-const SOUND_FILES: Record<SoundType, string> = {
-  rain: '/sounds/rain.mp3',
-  cafe: '/sounds/cafe.mp3',
-  fire: '/sounds/fire.mp3',
-  waves: '/sounds/waves.mp3',
-  forest: '/sounds/forest.mp3',
+function isAmbientSound(v: string | null): v is AmbientSoundType {
+  return !!v && (VALID_SOUNDS as string[]).includes(v)
 }
 
 export function useAmbientSound() {
   const { ambientSound, setAmbientSound, ambientVolume } = useBookMateStore()
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const currentSoundRef = useRef<SoundType | null>(null)
+  const engineRef = useRef<AmbientEngine | null>(null)
 
-  // Stop the current ambient sound
-  const stopAmbient = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      audioRef.current = null
+  // Lazily create the engine (must be done on the client)
+  const getEngine = useCallback((): AmbientEngine => {
+    if (!engineRef.current) {
+      engineRef.current = new AmbientEngine()
     }
-    currentSoundRef.current = null
+    return engineRef.current
   }, [])
-
-  // Play a specific ambient sound
-  const playAmbient = useCallback((type: SoundType) => {
-    // If same sound is already playing, do nothing
-    if (currentSoundRef.current === type && audioRef.current) {
-      return
-    }
-
-    // Stop any existing sound
-    stopAmbient()
-
-    // Create new Audio element
-    const audio = new Audio(SOUND_FILES[type])
-    audio.loop = true
-    audio.volume = 0.5 // Will be adjusted by volume control
-    audio.preload = 'auto'
-
-    audioRef.current = audio
-    currentSoundRef.current = type
-
-    // Play with error handling
-    audio.play().catch((err) => {
-      console.warn('Ambient sound play failed:', err)
-      // Browser might block autoplay - user needs to interact first
-    })
-  }, [stopAmbient])
 
   // Update volume when ambientVolume changes
   useEffect(() => {
-    if (audioRef.current) {
-      // Scale volume: store value 0-1, audio expects 0-1
-      // But we want 50% store volume to be a comfortable listening level
-      audioRef.current.volume = Math.min(1, ambientVolume * 0.8)
+    if (engineRef.current) {
+      engineRef.current.setVolume(ambientVolume)
     }
   }, [ambientVolume])
 
   // Play/stop when ambientSound changes
   useEffect(() => {
-    if (ambientSound && ambientSound in SOUND_FILES) {
-      playAmbient(ambientSound as SoundType)
+    if (isAmbientSound(ambientSound)) {
+      const engine = getEngine()
+      engine.play(ambientSound).catch((err) => {
+        console.warn('Ambient sound play failed:', err)
+      })
     } else {
-      stopAmbient()
+      if (engineRef.current) {
+        engineRef.current.stop()
+      }
     }
-
-    return () => {
-      stopAmbient()
-    }
-  }, [ambientSound, playAmbient, stopAmbient])
+  }, [ambientSound, getEngine])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
+      if (engineRef.current) {
+        engineRef.current.dispose()
+        engineRef.current = null
       }
     }
   }, [])
 
   return {
-    playAmbient: (type: SoundType) => setAmbientSound(type),
+    playAmbient: (type: AmbientSoundType) => setAmbientSound(type),
     stopAmbient: () => setAmbientSound(null),
     isAmbientPlaying: ambientSound !== null,
+    currentSound: ambientSound,
   }
 }

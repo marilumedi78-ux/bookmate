@@ -44,6 +44,8 @@ export async function GET() {
       if (!columnNames.includes('explicaUsed')) missingColumns.push({ name: 'explicaUsed', def: 'ALTER TABLE "User" ADD COLUMN "explicaUsed" INTEGER NOT NULL DEFAULT 0' })
       if (!columnNames.includes('ocrUsed')) missingColumns.push({ name: 'ocrUsed', def: 'ALTER TABLE "User" ADD COLUMN "ocrUsed" INTEGER NOT NULL DEFAULT 0' })
       if (!columnNames.includes('usageMonth')) missingColumns.push({ name: 'usageMonth', def: 'ALTER TABLE "User" ADD COLUMN "usageMonth" TEXT' })
+      if (!columnNames.includes('dailyGoalMin')) missingColumns.push({ name: 'dailyGoalMin', def: 'ALTER TABLE "User" ADD COLUMN "dailyGoalMin" INTEGER NOT NULL DEFAULT 20' })
+      if (!columnNames.includes('weeklyGoalDays')) missingColumns.push({ name: 'weeklyGoalDays', def: 'ALTER TABLE "User" ADD COLUMN "weeklyGoalDays" INTEGER NOT NULL DEFAULT 5' })
 
       for (const col of missingColumns) {
         try {
@@ -78,11 +80,55 @@ export async function GET() {
           "explicaUsed" INTEGER NOT NULL DEFAULT 0,
           "ocrUsed" INTEGER NOT NULL DEFAULT 0,
           "usageMonth" TEXT,
+          "dailyGoalMin" INTEGER NOT NULL DEFAULT 20,
+          "weeklyGoalDays" INTEGER NOT NULL DEFAULT 5,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `
     }
+
+    // 7. Book summaries table (AI-generated summaries)
+    const summariesExist = await sql`
+      SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = 'book_summaries'
+    `
+    if (Number(summariesExist[0]?.count) === 0) {
+      await sql`
+        CREATE TABLE "book_summaries" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+          "bookId" TEXT NOT NULL UNIQUE,
+          "keyPoints" TEXT NOT NULL,
+          "quotes" TEXT NOT NULL,
+          "targetReader" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `
+    }
+    try {
+      await sql`ALTER TABLE "book_summaries" DROP CONSTRAINT IF EXISTS "book_summaries_bookId_fkey"`
+      await sql`ALTER TABLE "book_summaries" ADD CONSTRAINT "book_summaries_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch { /* ignore */ }
+
+    // 8. Book emotions table (emotion graph per chapter)
+    const emotionsExist = await sql`
+      SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = 'book_emotions'
+    `
+    if (Number(emotionsExist[0]?.count) === 0) {
+      await sql`
+        CREATE TABLE "book_emotions" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+          "bookId" TEXT NOT NULL UNIQUE,
+          "data" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `
+    }
+    try {
+      await sql`ALTER TABLE "book_emotions" DROP CONSTRAINT IF EXISTS "book_emotions_bookId_fkey"`
+      await sql`ALTER TABLE "book_emotions" ADD CONSTRAINT "book_emotions_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    } catch { /* ignore */ }
 
     // 2. Books table
     const booksExist = await sql`

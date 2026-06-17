@@ -27,6 +27,9 @@ model User {
   explicaUsed   Int      @default(0) // number of "Explica" uses this month
   ocrUsed       Int      @default(0) // number of OCR scans this month
   usageMonth    String?  // YYYY-MM format, tracks which month the usage counters are for
+  // Reading goals
+  dailyGoalMin  Int      @default(20) // daily reading goal in minutes
+  weeklyGoalDays Int     @default(5)  // weekly goal: how many days to read
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   books         Book[]
@@ -58,8 +61,36 @@ model Book {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   highlights     Highlight[]
   readingLogs    ReadingLog[]
+  summary        BookSummary?
+  emotions       BookEmotion?
 
   @@map("books")
+}
+
+// AI-generated book summary: 3 key points + 5 quotes + "who is this for"
+model BookSummary {
+  id            String   @id @default(cuid())
+  bookId        String   @unique
+  keyPoints     String   // JSON array of 3 strings
+  quotes        String   // JSON array of 5 strings
+  targetReader  String   // "Para quien es este libro"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("book_summaries")
+}
+
+// Emotion graph per chapter: array of {charStart, charEnd, emotion, intensity, label}
+model BookEmotion {
+  id        String   @id @default(cuid())
+  bookId    String   @unique
+  data      String   // JSON array of emotion points
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("book_emotions")
 }
 
 model Highlight {
