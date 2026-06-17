@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 // Build a representative ~12000 char sample: beginning + middle + end of the text
 function buildSample(text: string, maxLen = 12000): string {
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     const sample = buildSample(book.textContent, 12000)
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     const systemPrompt =
       'Eres un editor literario experto que analiza libros y produce resúmenes estructurados. ' +

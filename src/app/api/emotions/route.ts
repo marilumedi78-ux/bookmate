@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 interface EmotionPoint {
   segmentIdx: number
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       )
       .join('\n\n---\n\n')
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     const systemPrompt =
       'Eres un analista literario experto en identificar la emoción dominante de fragmentos de texto. ' +

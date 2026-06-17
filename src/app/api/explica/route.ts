@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { ensureMonthlyUsageReset, getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Se requiere texto para explicar' }, { status: 400 })
     }
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     const prompts: Record<string, string> = {
       simple: `Explica de forma simple y clara el siguiente texto. Traduce lo complicado a lenguaje cotidiano. Responde en español:\n\n"${text}"`,

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { ensureMonthlyUsageReset, getEffectivePlan, getPlanLimits } from '@/lib/plan-limits'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     // SDK limit is 1024 chars per request — truncate to avoid errors
     const truncatedText = text.slice(0, 1024)
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     // CRITICAL: SDK API is zai.audio.tts.create({ input, voice, ... })
     // NOT zai.tts.create({ text, voice }) — using wrong params causes voice to be ignored
