@@ -1,18 +1,69 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
 
 // GET /api/setup — Initialize database tables and ensure all columns exist
-export async function GET() {
+// GET /api/setup?makeAdmin=email@example.com&key=BOOKMATE_ADMIN_2024 — Promote a user to admin (one-time use)
+export async function GET(req: NextRequest) {
   try {
     const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
     if (!connectionString) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No database connection string found. Check DATABASE_URL env variable.' 
+      return NextResponse.json({
+        success: false,
+        error: 'No database connection string found. Check DATABASE_URL env variable.'
       }, { status: 500 })
     }
 
     const sql = neon(connectionString)
+
+    // ── ADMIN PROMOTION ENDPOINT (one-time secret) ──
+    // Usage: /api/setup?makeAdmin=youremail@gmail.com&key=BOOKMATE_ADMIN_2024
+    const url = new URL(req.url)
+    const makeAdminEmail = url.searchParams.get('makeAdmin')
+    const adminKey = url.searchParams.get('key')
+
+    if (makeAdminEmail && adminKey) {
+      // Verify the secret key (change this before deploying!)
+      const EXPECTED_KEY = 'BOOKMATE_ADMIN_2024'
+      if (adminKey !== EXPECTED_KEY) {
+        return NextResponse.json({
+          success: false,
+          error: 'Clave de administrador inválida'
+        }, { status: 403 })
+      }
+
+      const normalizedEmail = makeAdminEmail.trim().toLowerCase()
+
+      // Check if user exists
+      const existing = await sql`
+        SELECT id, email, "isAdmin", "isVip", plan FROM "User" WHERE email = ${normalizedEmail}
+      `
+
+      if (existing.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: `No existe usuario con email: ${normalizedEmail}. Regístrate primero en la app.`
+        }, { status: 404 })
+      }
+
+      // Promote to admin + VIP + pro plan
+      await sql`
+        UPDATE "User"
+        SET "isAdmin" = true, "isVip" = true, plan = 'pro'
+        WHERE email = ${normalizedEmail}
+      `
+
+      const updated = await sql`
+        SELECT email, "isAdmin", "isVip", plan FROM "User" WHERE email = ${normalizedEmail}
+      `
+
+      return NextResponse.json({
+        success: true,
+        message: `¡Usuario ${normalizedEmail} promovido a admin + VIP + Pro!`,
+        user: updated[0],
+        instructions: 'Inicia sesión en la app, ve a la pestaña Pro, toca 7 veces "Versión de la app: 1.0.0" para abrir el panel de admin y agrega el email de tu hija como VIP.'
+      })
+    }
+    // ── END ADMIN PROMOTION ──
 
     // 1. Drop and recreate User table with ALL columns (clean approach)
     // This is safe for initial setup. For existing databases, we add columns individually.
