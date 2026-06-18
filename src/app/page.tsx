@@ -69,12 +69,21 @@ import {
   Smile,
   Filter,
   Library,
+  Share2,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
 import { VOICE_PROFILES } from '@/lib/voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
+import {
+  shareContent,
+  buildHighlightShareText,
+  buildAchievementsShareText,
+  buildWeeklyStatsShareText,
+  buildSummaryShareText,
+  type SharePlan,
+} from '@/lib/share-utils'
 import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { ComponentErrorBoundary } from '@/components/component-error-boundary'
@@ -1461,6 +1470,7 @@ function ReaderTab() {
     highlights,
     setHighlights,
     addHighlight,
+    removeHighlight,
     isExplaining,
     setIsExplaining,
     isLoadingBook,
@@ -1802,6 +1812,28 @@ function ReaderTab() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [showSummarySheet, setShowSummarySheet] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summarySharing, setSummarySharing] = useState(false)
+  const [readerToast, setReaderToast] = useState<string | null>(null)
+  const [showHighlightsSheet, setShowHighlightsSheet] = useState(false)
+  const [highlightSharing, setHighlightSharing] = useState(false)
+
+  // Share a single highlight quote
+  const handleShareHighlight = async (text: string) => {
+    if (!currentBook || highlightSharing) return
+    setHighlightSharing(true)
+    const result = await shareContent(buildHighlightShareText(
+      text,
+      currentBook.title,
+      currentBook.author,
+      plan as SharePlan
+    ))
+    setHighlightSharing(false)
+    const msg = result === 'copied' ? '¡Copiado al portapapeles!' : result === 'error' ? 'No se pudo compartir' : null
+    if (msg) {
+      setReaderToast(msg)
+      setTimeout(() => setReaderToast(null), 2500)
+    }
+  }
 
   const [emotionsData, setEmotionsData] = useState<{
     emotions: Array<{ segmentIdx: number; charStart: number; charEnd: number; emotion: string; intensity: number; label: string }>
@@ -2158,6 +2190,25 @@ function ReaderTab() {
     }
   }
 
+  // Share the AI summary — only when summaryData is loaded
+  const handleShareSummary = async () => {
+    if (!summaryData || !currentBook || summarySharing) return
+    setSummarySharing(true)
+    const result = await shareContent(buildSummaryShareText(
+      currentBook.title,
+      summaryData.keyPoints,
+      summaryData.quotes,
+      summaryData.targetReader,
+      plan as SharePlan
+    ))
+    setSummarySharing(false)
+    const msg = result === 'copied' ? '¡Copiado al portapapeles!' : result === 'error' ? 'No se pudo compartir' : null
+    if (msg) {
+      setReaderToast(msg)
+      setTimeout(() => setReaderToast(null), 2500)
+    }
+  }
+
   const handleEmotions = async () => {
     if (!currentBook) return
     if (!canUseAISummary) {
@@ -2378,13 +2429,19 @@ function ReaderTab() {
             </motion.div>
           )}
 
-          {/* Highlights count */}
+          {/* Highlights count — clickable to open the highlights list sheet */}
           {highlights.length > 0 && (
-            <div className="px-4 py-1.5 border-b bg-muted/30">
+            <button
+              type="button"
+              onClick={() => setShowHighlightsSheet(true)}
+              className="w-full text-left px-4 py-1.5 border-b bg-muted/30 hover:bg-muted/60 transition-colors flex items-center gap-2"
+            >
+              <BookMarked className="size-3.5 text-primary" />
               <p className="text-xs text-muted-foreground">
                 {highlights.length} subrayado{highlights.length !== 1 ? 's' : ''} en este libro
               </p>
-            </div>
+              <ChevronRight className="size-3 text-muted-foreground ml-auto" />
+            </button>
           )}
 
           {/* Visual mode: simplified controls (no TTS player) */}
@@ -2908,6 +2965,18 @@ function ReaderTab() {
             <SheetTitle className="flex items-center gap-2">
               <BookText className="size-4 text-primary" />
               Resumen IA
+              {summaryData && !summaryLoading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto size-8 p-0 text-muted-foreground hover:text-primary"
+                  onClick={handleShareSummary}
+                  disabled={summarySharing}
+                  aria-label="Compartir resumen"
+                >
+                  {summarySharing ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+                </Button>
+              )}
             </SheetTitle>
             <SheetDescription>
               {currentBook?.title}
@@ -2977,6 +3046,63 @@ function ReaderTab() {
         </SheetContent>
       </Sheet>
 
+      {/* ─── Highlights list Sheet (with per-highlight share + delete) ─── */}
+      <Sheet open={showHighlightsSheet} onOpenChange={setShowHighlightsSheet}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <BookMarked className="size-4 text-primary" />
+              Subrayados
+              <span className="text-xs font-normal text-muted-foreground ml-1">
+                ({highlights.length})
+              </span>
+            </SheetTitle>
+            <SheetDescription>
+              {currentBook?.title}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 px-4 pb-8 space-y-3">
+            {highlights.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Aún no tienes subrayados en este libro.
+              </p>
+            ) : (
+              highlights.map((h) => (
+                <div
+                  key={h.id}
+                  className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/40 rounded-lg p-3 space-y-2"
+                >
+                  <blockquote className="text-sm text-foreground/90 italic leading-relaxed">
+                    &ldquo;{h.text}&rdquo;
+                  </blockquote>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                      onClick={() => handleShareHighlight(h.text)}
+                      disabled={highlightSharing}
+                    >
+                      <Share2 className="size-3.5 mr-1" />
+                      Compartir
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 ml-auto text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => removeHighlight(h.id)}
+                    >
+                      <Trash2 className="size-3.5 mr-1" />
+                      Borrar
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* ─── Emotion Graph Sheet ─── */}
       <Sheet open={showEmotionsSheet} onOpenChange={setShowEmotionsSheet}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
@@ -3012,6 +3138,20 @@ function ReaderTab() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ─── Reader share feedback toast ─── */}
+      <AnimatePresence>
+        {readerToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed left-1/2 -translate-x-1/2 bottom-20 z-[60] bg-foreground text-background text-sm px-4 py-2 rounded-full shadow-lg"
+          >
+            {readerToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Upgrade Modal ─── */}
       <AnimatePresence>
@@ -3237,7 +3377,8 @@ interface AchievementData {
 }
 
 function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
-  const { streakDays, setIsVip, setUserPlan } = useBookMateStore()
+  const { streakDays, setIsVip, setUserPlan, userPlan, isVip } = useBookMateStore()
+  const plan: SharePlan = isVip ? 'pro' : userPlan
   const [stats, setStats] = useState<StatsData | null>(null)
   const [achievements, setAchievements] = useState<AchievementData[]>([])
   const [newAchievements, setNewAchievements] = useState<string[]>([])
@@ -3259,6 +3400,54 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [editDaily, setEditDaily] = useState(20)
   const [editWeekly, setEditWeekly] = useState(5)
   const [savingGoals, setSavingGoals] = useState(false)
+  // Share feedback toast
+  const [shareToast, setShareToast] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+
+  const handleShareWeekly = async () => {
+    if (sharing) return
+    const totalMin = weeklyData.reduce((s, d) => s + (d.minutes || 0), 0)
+    if (totalMin === 0) {
+      showToast('Aún no hay datos de lectura esta semana')
+      return
+    }
+    setSharing(true)
+    const result = await shareContent(buildWeeklyStatsShareText(
+      totalMin,
+      stats?.streakDays || 0,
+      stats?.totalBooks || 0,
+      goals?.weekDaysRead || 0,
+      plan
+    ))
+    setSharing(false)
+    showToast(result === 'copied' ? '¡Copiado al portapapeles!' : result === 'error' ? 'No se pudo compartir' : null)
+  }
+
+  const handleShareAchievements = async () => {
+    if (sharing) return
+    const unlockedNames = ALL_ACHIEVEMENT_TYPES
+      .filter((a) => unlockedTypes.has(a.type))
+      .map((a) => a.name)
+    if (unlockedNames.length === 0) {
+      showToast('Aún no tienes logros desbloqueados')
+      return
+    }
+    setSharing(true)
+    const result = await shareContent(buildAchievementsShareText(
+      unlockedNames,
+      stats?.streakDays || 0,
+      stats?.totalBooks || 0,
+      plan
+    ))
+    setSharing(false)
+    showToast(result === 'copied' ? '¡Copiado al portapapeles!' : result === 'error' ? 'No se pudo compartir' : null)
+  }
+
+  // Show a transient toast message (auto-dismiss after 2.5s)
+  const showToast = (msg: string | null) => {
+    setShareToast(msg)
+    if (msg) setTimeout(() => setShareToast(null), 2500)
+  }
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -3530,8 +3719,22 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
       {/* Weekly chart */}
       <Card className="py-4">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Lectura semanal</CardTitle>
-          <CardDescription>Minutos leídos por día</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Lectura semanal</CardTitle>
+              <CardDescription>Minutos leídos por día</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="size-8 p-0 text-muted-foreground hover:text-primary"
+              onClick={handleShareWeekly}
+              disabled={sharing}
+              aria-label="Compartir semana"
+            >
+              {sharing ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {weeklyData.length > 0 ? (
@@ -3585,8 +3788,22 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
       {/* Achievements */}
       <Card className="py-4">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Logros</CardTitle>
-          <CardDescription>Tus insignias de lectura</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Logros</CardTitle>
+              <CardDescription>Tus insignias de lectura</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="size-8 p-0 text-muted-foreground hover:text-primary"
+              onClick={handleShareAchievements}
+              disabled={sharing}
+              aria-label="Compartir logros"
+            >
+              {sharing ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-3">
@@ -3741,6 +3958,20 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Share feedback toast */}
+      <AnimatePresence>
+        {shareToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed left-1/2 -translate-x-1/2 bottom-20 z-50 bg-foreground text-background text-sm px-4 py-2 rounded-full shadow-lg"
+          >
+            {shareToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
