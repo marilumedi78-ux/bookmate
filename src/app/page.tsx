@@ -780,69 +780,94 @@ export default function Home() {
         </footer>
       </div>
 
-      {/* ── PREMIUM VOICE PREVIEW DIALOG (Cloudflare Workers AI samples) ── */}
+      {/* ── PREMIUM VOICE PREVIEW DIALOG (Cloudflare Workers AI — Deepgram Aura Spanish) ── */}
       <Dialog open={showVoicePreview} onOpenChange={setShowVoicePreview}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-5 text-amber-500" />
-              Voces Premium — Muestras
+              Voces Premium en Español
             </DialogTitle>
             <DialogDescription>
-              Escucha la diferencia entre la voz del navegador y la nueva voz neuronal premium (powered by Cloudflare Workers AI).
+              10 voces neuronales nativas en español (Deepgram Aura). Estas son las voces que tendrán los planes Plus y Pro.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Sample 1: Intro */}
-            <div className="rounded-lg border bg-card p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">1. Presentación</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    "Hola, soy tu voz de lectura premium..."
-                  </p>
+            {/* Female voices section */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <span className="text-rose-500">♀</span> Voces Femeninas
+              </p>
+              <div className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Stella — Presentación</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      "Hola, soy tu voz de lectura premium..."
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
                 </div>
-                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+                <audio controls className="w-full h-9" preload="metadata">
+                  <source src="/samples/dg-stella-intro.mp3" type="audio/mpeg" />
+                  Tu navegador no soporta audio.
+                </audio>
               </div>
-              <audio controls className="w-full h-9" preload="metadata">
-                <source src="/samples/cf-sample-1-intro.wav" type="audio/wav" />
-                Tu navegador no soporta audio.
-              </audio>
+
+              <div className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Stella — Literatura (El Alquimista)</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      "El alquimista cogió un vaso lleno de líquido..."
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+                </div>
+                <audio controls className="w-full h-9" preload="metadata">
+                  <source src="/samples/dg-stella-literature.mp3" type="audio/mpeg" />
+                  Tu navegador no soporta audio.
+                </audio>
+              </div>
             </div>
 
-            {/* Sample 2: Literature */}
-            <div className="rounded-lg border bg-card p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">2. Literatura (El Alquimista)</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    "El alquimista cogió un vaso lleno de líquido..."
-                  </p>
+            {/* Male voices section */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <span className="text-blue-500">♂</span> Voces Masculinas
+              </p>
+              <div className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Zeus — Presentación</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      "Hola, soy tu voz de lectura premium..."
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
                 </div>
-                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+                <audio controls className="w-full h-9" preload="metadata">
+                  <source src="/samples/dg-zeus-intro.mp3" type="audio/mpeg" />
+                  Tu navegador no soporta audio.
+                </audio>
               </div>
-              <audio controls className="w-full h-9" preload="metadata">
-                <source src="/samples/cf-sample-2-literature.wav" type="audio/wav" />
-                Tu navegador no soporta audio.
-              </audio>
-            </div>
 
-            {/* Sample 3: Narrative */}
-            <div className="rounded-lg border bg-card p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">3. Narrativa larga</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    "Cuando era niño, soñaba con viajar..."
-                  </p>
+              <div className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Zeus — Literatura (El Alquimista)</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      "El alquimista cogió un vaso lleno de líquido..."
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
                 </div>
-                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+                <audio controls className="w-full h-9" preload="metadata">
+                  <source src="/samples/dg-zeus-literature.mp3" type="audio/mpeg" />
+                  Tu navegador no soporta audio.
+                </audio>
               </div>
-              <audio controls className="w-full h-9" preload="metadata">
-                <source src="/samples/cf-sample-3-narrative.wav" type="audio/wav" />
-                Tu navegador no soporta audio.
-              </audio>
             </div>
 
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
@@ -851,7 +876,7 @@ export default function Home() {
                 ¿Qué opinas?
               </p>
               <p>
-                Si te gusta la calidad, puedo integrar estas voces en toda la app para que tus libros suenen así. Avísame qué piensas.
+                Estas son 2 de las 10 voces disponibles. Si te gusta la calidad, las integro en toda la app para tus libros.
               </p>
             </div>
           </div>
