@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useBookMateStore } from './store'
+import {
+  getVoiceProfile,
+  findBrowserVoiceForGender,
+  VOICE_PREVIEW_TEXT,
+  type VoiceProfile,
+} from './voice-profiles'
 
 // Split text into sentences for TTS playback
 function splitIntoSentences(text: string): { text: string; start: number; end: number }[] {
@@ -68,7 +74,7 @@ export function useTTS() {
     playbackSpeed,
     currentCharIndex,
     setCurrentCharIndex,
-    selectedBrowserVoiceURI,
+    selectedVoiceProfileId,
   } = useBookMateStore()
 
   const sentencesRef = useRef<{ text: string; start: number; end: number }[]>([])
@@ -80,11 +86,10 @@ export function useTTS() {
   const bookTextRef = useRef('')
   const consecutiveErrorCountRef = useRef(0)
   const voicesLoadedRef = useRef(false)
-  const selectedBrowserVoiceURIRef = useRef<string | null>(null)
+  const currentProfileRef = useRef<VoiceProfile | undefined>(undefined)
   const MAX_CONSECUTIVE_ERRORS = 3
 
   // Check if speech synthesis is supported
-  // Use state + effect to avoid hydration mismatch (server doesn't have window)
   const [speechSupported, setSpeechSupported] = useState(false)
   const [ttsStatus, setTtsStatus] = useState<TTSStatus>('idle')
   const [ttsError, setTtsError] = useState<string | null>(null)
@@ -110,11 +115,6 @@ export function useTTS() {
     currentSentenceIndexRef.current = 0
   }, [bookText])
 
-  // Keep selected voice ref in sync
-  useEffect(() => {
-    selectedBrowserVoiceURIRef.current = selectedBrowserVoiceURI
-  }, [selectedBrowserVoiceURI])
-
   // Detect speech support on client-side only (avoids hydration mismatch)
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'
@@ -134,17 +134,13 @@ export function useTTS() {
       const voices = safeGetVoices()
       if (voices.length > 0) {
         voicesLoadedRef.current = true
-        console.log(`TTS: ${voices.length} voices loaded. Spanish:`,
-          voices.filter(v => v.lang.startsWith('es')).map(v => `${v.name} (${v.lang})`))
       }
     }
 
     checkVoices()
-    // Use addEventListener instead of overwriting onvoiceschanged
     try {
       window.speechSynthesis.addEventListener('voiceschanged', checkVoices)
     } catch {
-      // Fallback for browsers that don't support addEventListener on speechSynthesis
       window.speechSynthesis.onvoiceschanged = checkVoices
     }
     const timer1 = setTimeout(checkVoices, 100)
@@ -160,6 +156,28 @@ export function useTTS() {
       clearTimeout(timer3)
     }
   }, [speechSupported])
+
+  // ─── KEY FIX: React to voice profile changes ───
+  // When user selects a new voice profile, immediately stop current playback
+  // and restart with the new voice so the change is audible.
+  useEffect(() => {
+    const newProfile = getVoiceProfile(selectedVoiceProfileId)
+    const profileChanged = currentProfileRef.current?.id !== newProfile?.id
+    currentProfileRef.current = newProfile
+
+    if (profileChanged && isPlayingRef.current && speechSupported) {
+      // Stop and restart with new voice from current sentence
+      const currentIdx = currentSentenceIndexRef.current
+      safeCancel()
+      isPausedRef.current = false
+      // Small delay to let cancel() complete before re-speaking
+      setTimeout(() => {
+        if (isPlayingRef.current) {
+          speakSentenceRef.current(currentIdx)
+        }
+      }, 150)
+    }
+  }, [selectedVoiceProfileId, speechSupported])
 
   // Find the sentence index for a given character position
   const findSentenceIndex = useCallback((charIdx: number): number => {
@@ -204,26 +222,29 @@ export function useTTS() {
 
     try {
       const utterance = new SpeechSynthesisUtterance(sentence.text)
-      utterance.rate = playbackSpeedRef.current
+      // Combine playback speed with profile rate
+      const profile = currentProfileRef.current
+      const profileRate = profile?.rate ?? 1.0
+      utterance.rate = Math.min(2.0, Math.max(0.5, playbackSpeedRef.current * profileRate))
+      utterance.pitch = profile?.pitch ?? 1.0
 
-      // Try to find the best voice
+      // Find the best matching browser voice for this profile's gender
       const voices = safeGetVoices()
       let selectedVoice: SpeechSynthesisVoice | null = null
 
-      // 1. If user selected a specific voice, use it
-      const userURI = selectedBrowserVoiceURIRef.current
-      if (userURI) {
-        selectedVoice = voices.find(v => v.voiceURI === userURI) || null
+      if (profile?.voiceURI) {
+        // Profile specifies a specific voice URI
+        selectedVoice = voices.find(v => v.voiceURI === profile.voiceURI) || null
+      } else if (profile) {
+        // Profile wants best voice for its gender
+        selectedVoice = findBrowserVoiceForGender(voices, profile.gender)
       }
 
-      // 2. Otherwise, fall back to best Spanish voice
+      // Fallback to best Spanish voice if nothing matched
       if (!selectedVoice && voices.length > 0) {
         selectedVoice = voices.find(v => v.lang.startsWith('es') && v.localService) || null
         if (!selectedVoice) {
           selectedVoice = voices.find(v => v.lang.startsWith('es')) || null
-        }
-        if (!selectedVoice) {
-          selectedVoice = voices.find(v => v.localService) || null
         }
       }
 
@@ -233,9 +254,6 @@ export function useTTS() {
       } else {
         utterance.lang = 'es-ES'
       }
-
-      console.log(`TTS: Speaking sentence ${sentenceIdx + 1}/${sentences.length}`,
-        selectedVoice ? `(voice: ${selectedVoice.name})` : '(default voice)')
 
       utterance.onstart = () => {
         consecutiveErrorCountRef.current = 0
@@ -255,7 +273,6 @@ export function useTTS() {
         }
 
         consecutiveErrorCountRef.current += 1
-        console.error(`TTS error: ${event.error} (consecutive: ${consecutiveErrorCountRef.current})`)
 
         if (consecutiveErrorCountRef.current >= MAX_CONSECUTIVE_ERRORS) {
           const errorMsg = event.error === 'synthesis-failed'
@@ -284,7 +301,6 @@ export function useTTS() {
           try {
             window.speechSynthesis.speak(utterance)
           } catch (err) {
-            console.error('TTS speak() threw:', err)
             setTtsStatus('error')
             setTtsError('Error al iniciar la lectura. Intenta de nuevo.')
             setIsPlaying(false)
@@ -293,18 +309,67 @@ export function useTTS() {
         }
       }, speakDelay)
     } catch (err) {
-      console.error('TTS speakSentence() threw:', err)
       setTtsStatus('error')
       setTtsError('Error de síntesis de voz. Intenta recargar la página.')
       setIsPlaying(false)
       isPlayingRef.current = false
     }
-  }, [speechSupported, setCurrentCharIndex, setIsPlaying, selectedBrowserVoiceURI])
+  }, [speechSupported, setCurrentCharIndex, setIsPlaying])
 
   // Keep the ref updated
   useEffect(() => {
     speakSentenceRef.current = speakSentence
   }, [speakSentence])
+
+  // ─── Preview a voice profile (play sample text without affecting playback) ───
+  const previewVoice = useCallback((profileId: string) => {
+    if (!speechSupported) {
+      setTtsStatus('not-supported')
+      setTtsError('Tu navegador no soporta lectura en voz alta')
+      return
+    }
+
+    const profile = getVoiceProfile(profileId)
+    if (!profile) return
+
+    // Stop any current playback first
+    safeCancel()
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(VOICE_PREVIEW_TEXT)
+      utterance.rate = profile.rate
+      utterance.pitch = profile.pitch
+
+      const voices = safeGetVoices()
+      let selectedVoice: SpeechSynthesisVoice | null = null
+
+      if (profile.voiceURI) {
+        selectedVoice = voices.find(v => v.voiceURI === profile.voiceURI) || null
+      } else {
+        selectedVoice = findBrowserVoiceForGender(voices, profile.gender)
+      }
+
+      if (!selectedVoice && voices.length > 0) {
+        selectedVoice = voices.find(v => v.lang.startsWith('es')) || voices[0]
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice
+        utterance.lang = selectedVoice.lang
+      } else {
+        utterance.lang = 'es-ES'
+      }
+
+      window.speechSynthesis.speak(utterance)
+    } catch (err) {
+      setTtsError('No se pudo reproducir la muestra de voz')
+    }
+  }, [speechSupported])
+
+  // Stop any voice preview (or playback)
+  const stopPreview = useCallback(() => {
+    safeCancel()
+  }, [])
 
   // Start playing from current position
   const play = useCallback(() => {
@@ -460,7 +525,6 @@ export function useTTS() {
       isPlayingRef.current = false
       isPausedRef.current = false
       currentSentenceIndexRef.current = 0
-      // Use setIsPlaying directly - it's a zustand setter, not React setState
       setIsPlaying(false)
     }
   }, [bookText, speechSupported, setIsPlaying])
@@ -473,7 +537,9 @@ export function useTTS() {
     skipForward,
     skipBack,
     seekTo,
+    previewVoice,
+    stopPreview,
     ttsStatus,
     ttsError,
-  }), [play, pause, stop, skipForward, skipBack, seekTo, ttsStatus, ttsError])
+  }), [play, pause, stop, skipForward, skipBack, seekTo, previewVoice, stopPreview, ttsStatus, ttsError])
 }

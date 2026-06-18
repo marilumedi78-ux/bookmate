@@ -73,7 +73,7 @@ import {
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
-import { useAITTS } from '@/lib/use-ai-tts'
+import { VOICE_PROFILES } from '@/lib/voice-profiles'
 import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { ComponentErrorBoundary } from '@/components/component-error-boundary'
@@ -1443,12 +1443,8 @@ function ReaderTab() {
     setAmbientSound,
     ambientVolume,
     setAmbientVolume,
-    voiceMode,
-    setVoiceMode,
-    selectedBrowserVoiceURI,
-    setSelectedBrowserVoiceURI,
-    selectedAIVoice,
-    setSelectedAIVoice,
+    selectedVoiceProfileId,
+    setSelectedVoiceProfileId,
     sleepTimer,
     setSleepTimer,
     showExplica,
@@ -1473,7 +1469,6 @@ function ReaderTab() {
   const canUseAllSpeeds = plan !== 'free'
   const maxHighlightsPerBook = plan === 'free' ? 5 : Infinity
   const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
-  const canUseIAVoice = plan !== 'free'
 
   // State declarations - MUST be before effects that use them
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
@@ -1484,25 +1479,10 @@ function ReaderTab() {
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sleepEndTimeRef = useRef<number | null>(null)
 
-  // Both TTS engines — switch based on voiceMode
-  const browserTts = useTTS()
-  const aiTts = useAITTS()
-  const tts = useMemo(
-    () => voiceMode === 'ai' && canUseIAVoice ? aiTts : browserTts,
-    [voiceMode, canUseIAVoice, aiTts, browserTts]
-  )
-
-  // Handle AI TTS errors (plan limits, etc.)
-  useEffect(() => {
-    if (voiceMode === 'ai' && aiTts.ttsError) {
-      // If the error is about plan limits, show upgrade modal
-      if (aiTts.ttsError.includes('límite') || aiTts.ttsError.includes('Limit') || aiTts.ttsError.includes('requiere')) {
-        setShowUpgradeModal('ia-voice')
-        // Fall back to browser TTS
-        setVoiceMode('browser')
-      }
-    }
-  }, [voiceMode, aiTts.ttsError, setShowUpgradeModal, setVoiceMode])
+  // Single TTS engine — uses voice profiles (browser TTS + pitch + rate variations)
+  // Works on ALL devices and ALL deployments (sandbox + Vercel). Costs $0 in API calls.
+  const tts = useTTS()
+  const { previewVoice, stopPreview } = tts
 
   // Ambient sound engine
   useAmbientSound()
@@ -1777,12 +1757,10 @@ function ReaderTab() {
     }
   }, [sleepTimer, tts, setAmbientSound, setSleepTimer])
 
-  // Check if speech synthesis is available and has voices
+  // Check if speech synthesis is available
   // Use state to avoid hydration mismatch (server doesn't have window)
   const [speechSupported, setSpeechSupported] = useState(false)
   const [hasVoices, setHasVoices] = useState(false)
-  // Available browser voices (filtered to Spanish + categorize by gender)
-  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([])
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
@@ -1792,11 +1770,6 @@ function ReaderTab() {
       try {
         const voices = window.speechSynthesis.getVoices()
         setHasVoices(voices.length > 0)
-        // Filter to Spanish voices, plus any local voices if no Spanish
-        const spanishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'))
-        const otherVoices = voices.filter(v => !v.lang?.toLowerCase().startsWith('es'))
-        // Prefer Spanish, but include others as fallback so user has options
-        setBrowserVoices(spanishVoices.length > 0 ? spanishVoices : otherVoices)
       } catch {}
     }
     checkVoices()
@@ -1812,29 +1785,6 @@ function ReaderTab() {
       clearTimeout(timer)
     }
   }, [])
-
-  // AI Voice options for Plus/Pro users
-  // Each voice has a friendly Spanish name + descriptive characteristic
-  const AI_VOICES = [
-    { id: 'tongtong', name: 'Sofía', desc: 'Cálida y amigable', gender: 'female' as const },
-    { id: 'xiaochen', name: 'Mateo', desc: 'Profesional y claro', gender: 'male' as const },
-    { id: 'douji', name: 'Lucía', desc: 'Natural y conversacional', gender: 'female' as const },
-    { id: 'luodo', name: 'Daniel', desc: 'Expressivo y envolvente', gender: 'male' as const },
-    { id: 'chuichui', name: 'Valeria', desc: 'Joven y energética', gender: 'female' as const },
-    { id: 'kazi', name: 'Andrés', desc: 'Estándar y claro', gender: 'male' as const },
-  ]
-
-  // Helper: guess gender from browser voice name (best-effort heuristic)
-  const guessBrowserVoiceGender = (voice: SpeechSynthesisVoice): 'male' | 'female' | 'unknown' => {
-    const name = voice.name.toLowerCase()
-    // Known female voice names
-    const femaleNames = ['helena', 'sabina', 'laura', 'carmen', 'elvira', 'monica', 'paulina', 'marisol', 'sofia', 'lucia', 'valeria', 'mónica', 'lucía', 'female', 'mujer', 'femenina', 'google español', 'google us español']
-    // Known male voice names
-    const maleNames = ['pablo', 'jorge', 'miguel', 'enrique', 'carlos', 'diego', 'juan', 'mateo', 'daniel', 'andres', 'andrés', 'male', 'hombre', 'masculino']
-    if (femaleNames.some(n => name.includes(n))) return 'female'
-    if (maleNames.some(n => name.includes(n))) return 'male'
-    return 'unknown'
-  }
 
   // ─── AI Summary & Emotion Graph state (must be before early return) ───
   const [summaryData, setSummaryData] = useState<{
@@ -2181,13 +2131,9 @@ function ReaderTab() {
       {/* TTS Status indicators */}
       {tts.ttsStatus === 'playing' && (
         <div className="px-4 py-1.5 bg-primary/10 border-b flex items-center gap-2 shrink-0">
-          {voiceMode === 'ai' && canUseIAVoice ? (
-            <Sparkles className="size-3.5 text-primary animate-pulse" />
-          ) : (
-            <Volume2 className="size-3.5 text-primary animate-pulse" />
-          )}
+          <Volume2 className="size-3.5 text-primary animate-pulse" />
           <span className="text-xs text-primary font-medium">
-            {voiceMode === 'ai' && canUseIAVoice ? 'Leyendo con voz IA...' : 'Leyendo en voz alta...'}
+            Leyendo en voz alta...
           </span>
           <span className="text-[10px] text-muted-foreground ml-auto">Sube el volumen 🔊</span>
         </div>
@@ -2506,108 +2452,107 @@ function ReaderTab() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Voice mode toggle: Browser TTS vs AI Voice + voice selector */}
+            {/* Voice profile selector — premium voice characters with preview */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`size-8 ${voiceMode === 'ai' ? 'text-primary' : ''}`}
+                  className="size-8"
+                  aria-label="Seleccionar voz"
                 >
-                  {voiceMode === 'ai' ? (
-                    <Sparkles className="size-4" />
-                  ) : (
-                    <Volume2 className="size-4" />
-                  )}
+                  <Volume2 className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Tipo de voz</DropdownMenuLabel>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuLabel className="flex items-center justify-between">
+                  <span>Voces</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    Plan {plan === 'free' ? 'Gratis' : plan === 'plus' ? 'Plus' : 'Pro'}
+                  </span>
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setVoiceMode('browser')}
-                  className={voiceMode === 'browser' ? 'bg-primary/10' : ''}
-                >
-                  <Volume2 className="size-4 mr-2" />
-                  Voz del navegador
-                  {voiceMode === 'browser' && <Check className="size-3.5 ml-auto" />}
-                </DropdownMenuItem>
-                {canUseIAVoice ? (
-                  <DropdownMenuItem
-                    onClick={() => setVoiceMode('ai')}
-                    className={voiceMode === 'ai' ? 'bg-primary/10' : ''}
-                  >
-                    <Sparkles className="size-4 mr-2" />
-                    Voz IA
-                    {voiceMode === 'ai' && <Check className="size-3.5 ml-auto" />}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    className="text-primary"
-                    onClick={() => setShowUpgradeModal('ia-voice')}
-                  >
-                    <Lock className="size-4 mr-2" />
-                    Voz IA (Plus/Pro)
-                  </DropdownMenuItem>
-                )}
 
-                {/* Browser voice selector */}
-                {voiceMode === 'browser' && browserVoices.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs">Voz específica</DropdownMenuLabel>
-                    {browserVoices.map((voice) => {
-                      const gender = guessBrowserVoiceGender(voice)
-                      const genderIcon = gender === 'female' ? '♀' : gender === 'male' ? '♂' : '·'
-                      return (
-                        <DropdownMenuItem
-                          key={voice.voiceURI}
-                          onClick={() => setSelectedBrowserVoiceURI(voice.voiceURI)}
-                          className={selectedBrowserVoiceURI === voice.voiceURI ? 'bg-primary/10' : ''}
-                        >
-                          <span className="mr-1.5 text-xs">{genderIcon}</span>
-                          <span className="truncate flex-1">{voice.name}</span>
-                          {selectedBrowserVoiceURI === voice.voiceURI && <Check className="size-3.5 ml-auto" />}
-                        </DropdownMenuItem>
-                      )
-                    })}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => setSelectedBrowserVoiceURI(null)}
-                      className={!selectedBrowserVoiceURI ? 'bg-primary/10' : ''}
-                    >
-                      <span className="mr-1.5 text-xs">·</span>
-                      Automática
-                      {!selectedBrowserVoiceURI && <Check className="size-3.5 ml-auto" />}
-                    </DropdownMenuItem>
-                  </>
-                )}
+                {/* Voice profile list — show profiles available for current plan + locked premium ones */}
+                {VOICE_PROFILES.map((v) => {
+                  const planLevel = { free: 0, plus: 1, pro: 2 }
+                  const userLevel = planLevel[plan as 'free' | 'plus' | 'pro']
+                  const voiceLevel = planLevel[v.plan]
+                  const isLocked = voiceLevel > userLevel
+                  const isSelected = selectedVoiceProfileId === v.id
+                  const genderIcon = v.gender === 'female' ? '♀' : '♂'
 
-                {/* AI voice selector */}
-                {voiceMode === 'ai' && canUseIAVoice && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs">Voz IA</DropdownMenuLabel>
-                    {AI_VOICES.map((v) => (
+                  if (isLocked) {
+                    return (
                       <DropdownMenuItem
                         key={v.id}
-                        onClick={() => setSelectedAIVoice(v.id)}
-                        className={selectedAIVoice === v.id ? 'bg-primary/10' : ''}
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          stopPreview()
+                          setShowUpgradeModal('ia-voice')
+                        }}
                       >
-                        <span className="mr-1.5 text-xs">{v.gender === 'female' ? '♀' : '♂'}</span>
+                        <Lock className="size-3.5 mr-1.5 shrink-0" />
+                        <span className="mr-1 text-xs">{genderIcon}</span>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm">{v.name}</div>
+                          <div className="text-sm flex items-center gap-1.5">
+                            {v.name}
+                            {v.badge && (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                                {v.badge}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
                         </div>
-                        {selectedAIVoice === v.id && <Check className="size-3.5 ml-auto" />}
                       </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-                      {plan === 'pro' ? '25 hrs/mes' : '15 hrs/mes'} de voz IA incluidas
-                    </div>
-                  </>
-                )}
+                    )
+                  }
+
+                  return (
+                    <DropdownMenuItem
+                      key={v.id}
+                      onClick={() => {
+                        stopPreview()
+                        setSelectedVoiceProfileId(v.id)
+                      }}
+                      className={isSelected ? 'bg-primary/10' : ''}
+                    >
+                      <span className="mr-1.5 text-xs shrink-0">{genderIcon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm flex items-center gap-1.5">
+                          {v.name}
+                          {v.badge && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                              {v.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
+                      </div>
+                      {/* Preview play button — stops propagation so it doesn't close the dropdown */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          previewVoice(v.id)
+                        }}
+                        className="size-6 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors mr-1"
+                        aria-label={`Probar voz de ${v.name}`}
+                      >
+                        <Play className="size-3" />
+                      </button>
+                      {isSelected && <Check className="size-3.5 shrink-0" />}
+                    </DropdownMenuItem>
+                  )
+                })}
+
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  <Play className="size-3" />
+                  <span>Toca ▶ para probar cada voz</span>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -2980,7 +2925,7 @@ function ReaderTab() {
                     {showUpgradeModal === 'ambient' && 'Sonidos ambientales'}
                     {showUpgradeModal === 'sleep' && 'Temporizador de sueño'}
                     {showUpgradeModal === 'speed' && 'Velocidades avanzadas'}
-                    {showUpgradeModal === 'ia-voice' && 'Voz IA'}
+                    {showUpgradeModal === 'ia-voice' && 'Voces premium'}
                     {showUpgradeModal === 'explica' && 'Límite de Explica alcanzado'}
                     {showUpgradeModal === 'books' && 'Límite de libros alcanzado'}
                     {showUpgradeModal === 'summary' && 'Resumen IA'}
@@ -2993,7 +2938,7 @@ function ReaderTab() {
                 {showUpgradeModal === 'ambient' && 'Relájate con lluvia, café, fogata, olas y bosque mientras lees.'}
                 {showUpgradeModal === 'sleep' && 'Programa que la lectura se detenga automáticamente tras 15, 30, 45 o 60 minutos.'}
                 {showUpgradeModal === 'speed' && 'Ajusta la velocidad de lectura entre 0.5x y 2x para ir a tu ritmo.'}
-                {showUpgradeModal === 'ia-voice' && 'Escucha tus libros con voces IA de alta calidad, más naturales que las del navegador.'}
+                {showUpgradeModal === 'ia-voice' && 'Desbloquea 6 voces premium con personalidades únicas: Sofía (cálida), Mateo (profesional), Lucía (joven), Daniel (grave), Valeria (alegre) y Andrés (pausado). Cada voz combina tono y velocidad para una experiencia de audiolibro.'}
                 {showUpgradeModal === 'explica' && 'Con Plus tienes 10 Explica/mes, y con Pro son ilimitados. Explica te ayuda a entender cualquier texto.'}
                 {showUpgradeModal === 'books' && 'Con Plus puedes tener hasta 20 libros, y con Pro son ilimitados. Sube todos los libros que quieras.'}
                 {showUpgradeModal === 'summary' && 'Con Pro obtienes un resumen IA de cada libro: 3 ideas clave, 5 citas memorables y para quién es el libro.'}
@@ -3620,21 +3565,16 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
               </span>
             </div>
 
-            {/* AI Voice usage */}
-            {planLimits.canUseIAVoice && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Volume2 className="size-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Voz IA</span>
-                </div>
-                <span className="text-sm font-medium">
-                  {usageData ? `${usageData.iaHoursUsed}` : '0'}
-                  {' de '}
-                  {planLimits.maxIaVoiceHoursPerMonth}
-                  {' '}horas este mes
-                </span>
+            {/* Voice profiles info */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Volume2 className="size-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Voces disponibles</span>
               </div>
-            )}
+              <span className="text-sm font-medium">
+                {plan === 'free' ? '2 básicas' : plan === 'plus' ? '6 personajes' : '8 personajes'}
+              </span>
+            </div>
 
             {/* Books limit */}
             {planLimits.maxBooks !== null && (
@@ -3665,11 +3605,6 @@ function StatsTab({ isLoggedIn }: { isLoggedIn: boolean }) {
             {/* Feature flags summary */}
             <div className="pt-2 border-t">
               <div className="flex flex-wrap gap-2">
-                {planLimits.canUseIAVoice && (
-                  <Badge variant="secondary" className="text-[10px] gap-1">
-                    <Volume2 className="size-3" /> Voz IA
-                  </Badge>
-                )}
                 {planLimits.canUseAmbientSounds && (
                   <Badge variant="secondary" className="text-[10px] gap-1">
                     <Waves className="size-3" /> Sonidos
@@ -3879,7 +3814,7 @@ function PricingTab() {
       period: '',
       features: [
         'Hasta 3 libros',
-        'Selector de voces (masc. y fem.)',
+        '2 voces básicas (masc. y fem.)',
         'Sonidos ambientales',
         '5 subrayados por libro',
         'Racha de lectura diaria',
@@ -3896,8 +3831,8 @@ function PricingTab() {
       popular: true,
       features: [
         'Hasta 20 libros',
-        'Voces IA naturales (masc., fem. y conversacional)',
-        '15 hrs voz IA/mes',
+        '6 voces premium con personalidad',
+        'Probar voces antes de elegir',
         'Subrayados ilimitados',
         '10 Explica/mes',
         'Temporizador de sueño',
@@ -3915,8 +3850,7 @@ function PricingTab() {
       annualMonthly: '$10.83/mes',
       features: [
         'Libros ilimitados',
-        'Todas las voces IA',
-        '25 hrs voz IA/mes',
+        '8 voces premium (incl. narrador de audiolibros)',
         'Explica ilimitado + en voz alta',
         'Resumen IA del libro (3 ideas + 5 citas)',
         'Gráfico de emociones por capítulo',

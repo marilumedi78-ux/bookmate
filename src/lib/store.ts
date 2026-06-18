@@ -2,7 +2,6 @@ import { create } from 'zustand'
 
 export type TabType = 'library' | 'reader' | 'stats' | 'pricing'
 export type ReadingMode = 'visual' | 'audio' | 'both'
-export type VoiceMode = 'browser' | 'ai' // browser = Web Speech API, ai = server TTS
 
 export interface BookItem {
   id: string
@@ -74,17 +73,10 @@ interface BookMateState {
   ambientVolume: number
   setAmbientVolume: (vol: number) => void
 
-  // Voice mode (browser TTS vs AI TTS)
-  voiceMode: VoiceMode
-  setVoiceMode: (mode: VoiceMode) => void
-
-  // Selected browser voice URI (for Web Speech API)
-  selectedBrowserVoiceURI: string | null
-  setSelectedBrowserVoiceURI: (uri: string | null) => void
-
-  // Selected AI voice (for /api/tts)
-  selectedAIVoice: string
-  setSelectedAIVoice: (voice: string) => void
+  // Selected voice profile ID (replaces voiceMode + selectedBrowserVoiceURI + selectedAIVoice)
+  // Uses /lib/voice-profiles.ts — combines browser voice + pitch + rate for distinct characters
+  selectedVoiceProfileId: string
+  setSelectedVoiceProfileId: (id: string) => void
 
   // Sleep timer
   sleepTimer: number | null
@@ -168,17 +160,9 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   ambientVolume: 0.5,
   setAmbientVolume: (vol) => set({ ambientVolume: vol }),
 
-  // Voice mode
-  voiceMode: 'browser',
-  setVoiceMode: (mode) => set({ voiceMode: mode }),
-
-  // Selected browser voice URI (persisted to localStorage for consistency)
-  selectedBrowserVoiceURI: null,
-  setSelectedBrowserVoiceURI: (uri) => set({ selectedBrowserVoiceURI: uri }),
-
-  // Selected AI voice — default 'tongtong' (warm, friendly)
-  selectedAIVoice: 'tongtong',
-  setSelectedAIVoice: (voice) => set({ selectedAIVoice: voice }),
+  // Selected voice profile — default 'free-female' (works on all plans)
+  selectedVoiceProfileId: 'free-female',
+  setSelectedVoiceProfileId: (id) => set({ selectedVoiceProfileId: id }),
 
   // Sleep timer
   sleepTimer: null,
