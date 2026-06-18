@@ -74,6 +74,7 @@ import {
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
 import { VOICE_PROFILES } from '@/lib/voice-profiles'
+import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
 import { useAmbientSound } from '@/lib/use-ambient-sound'
 import { BookMateLogo } from '@/components/bookmate-logo'
 import { ComponentErrorBoundary } from '@/components/component-error-boundary'
@@ -1445,6 +1446,12 @@ function ReaderTab() {
     setAmbientVolume,
     selectedVoiceProfileId,
     setSelectedVoiceProfileId,
+    skipRanges,
+    autoSkipEnabled,
+    addSkipRange,
+    removeSkipRangeAt,
+    clearSkipRangesForBook,
+    setAutoSkipEnabled,
     sleepTimer,
     setSleepTimer,
     showExplica,
@@ -1830,6 +1837,10 @@ function ReaderTab() {
   const totalChars = bookText?.length || 0
   const progressPercent = totalChars > 0 ? ((currentCharIndex || 0) / totalChars) * 100 : 0
 
+  // Skip ranges for the current book (manual "no leer" selections)
+  const currentSkipRanges = currentBook?.id ? (skipRanges[currentBook.id] || []) : []
+  const skipCount = currentSkipRanges.length
+
   const handlePlayPause = () => {
     try {
       if (isPlaying) {
@@ -1911,6 +1922,21 @@ function ReaderTab() {
       })
     }
     setSelectedText('')
+  }
+
+  // Mark the currently-selected text as "no leer" — TTS will skip this range
+  const handleSkipSelection = () => {
+    if (!selectedText || !currentBook) return
+
+    const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
+    const actualStart = charStart >= 0 ? charStart : 0
+
+    addSkipRange(currentBook.id, {
+      start: actualStart,
+      end: actualStart + selectedText.length,
+    })
+    setSelectedText('')
+    try { window.getSelection()?.removeAllRanges() } catch {}
   }
 
   const handleExplica = () => {
@@ -1995,12 +2021,15 @@ function ReaderTab() {
           charPos = end + 1
 
           const isActive = currentCharIndex >= start && currentCharIndex < end
+          const isSkipped =
+            isSentenceSkipped(start, end, currentSkipRanges) ||
+            (autoSkipEnabled && isNoiseSentence(sentence))
 
           return (
             <span
               key={i}
               id={isActive ? 'tts-active-sentence' : undefined}
-              className={isActive ? 'highlight-active' : ''}
+              className={`${isActive ? 'highlight-active' : ''} ${isSkipped ? 'line-through opacity-40' : ''}`}
             >
               {sentence}{' '}
             </span>
@@ -2010,6 +2039,86 @@ function ReaderTab() {
       </>
     )
   }
+
+  // Reusable "Omitir partes" dropdown — used in both reading-mode control bars
+  const renderSkipControl = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-8 ${skipCount > 0 || autoSkipEnabled ? 'text-primary' : ''}`}
+          aria-label="Omitir partes"
+        >
+          <EyeOff className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Omitir partes</span>
+          {(skipCount > 0 || autoSkipEnabled) && (
+            <span className="text-[10px] font-normal text-primary">
+              {skipCount} manual{skipCount !== 1 ? 'es' : ''}
+            </span>
+          )}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {/* Auto-skip toggle — detects copyright, ISBN, page numbers, etc. */}
+        <DropdownMenuItem
+          onClick={() => setAutoSkipEnabled(!autoSkipEnabled)}
+          className={autoSkipEnabled ? 'bg-primary/10' : ''}
+        >
+          <EyeOff className="size-4 mr-2 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm">Omitir texto legal</div>
+            <div className="text-[10px] text-muted-foreground">Copyright, ISBN, números de página…</div>
+          </div>
+          {autoSkipEnabled && <Check className="size-3.5 ml-auto shrink-0" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {skipCount === 0 ? (
+          <div className="px-2 py-3 text-center">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Selecciona texto y toca{' '}
+              <span className="font-medium text-foreground">No leer</span> para omitirlo al escuchar.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="max-h-48 overflow-y-auto">
+              {currentSkipRanges.map((r, i) => (
+                <DropdownMenuItem key={i} className="items-start">
+                  <EyeOff className="size-3.5 mr-1.5 mt-0.5 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-xs text-muted-foreground line-clamp-2">
+                    {previewRange(bookText, r, 50)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (currentBook) removeSkipRangeAt(currentBook.id, i)
+                    }}
+                    className="size-5 rounded flex items-center justify-center hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0"
+                    aria-label="Quitar omisión"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => currentBook && clearSkipRangesForBook(currentBook.id)}
+            >
+              <Trash2 className="size-4 mr-2" />
+              Limpiar todo
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
   const ReadingModeIcon = readingModeIcon
@@ -2250,6 +2359,10 @@ function ReaderTab() {
                 <BookMarked className="size-3.5 mr-1" />
                 Subrayar
               </Button>
+              <Button size="sm" variant="outline" onClick={handleSkipSelection}>
+                <EyeOff className="size-3.5 mr-1" />
+                No leer
+              </Button>
               <Button size="sm" variant="outline" onClick={handleExplica}>
                 <Sparkles className="size-3.5 mr-1" />
                 Explica
@@ -2365,6 +2478,7 @@ function ReaderTab() {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {renderSkipControl()}
               </div>
             </div>
           )}
@@ -2693,6 +2807,8 @@ function ReaderTab() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {renderSkipControl()}
 
             <Button
               variant="ghost"

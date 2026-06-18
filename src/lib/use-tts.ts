@@ -8,6 +8,7 @@ import {
   VOICE_PREVIEW_TEXT,
   type VoiceProfile,
 } from './voice-profiles'
+import { isSentenceSkipped, isNoiseSentence, type SkipRange } from './skip-utils'
 
 // Split text into sentences for TTS playback
 function splitIntoSentences(text: string): { text: string; start: number; end: number }[] {
@@ -75,6 +76,9 @@ export function useTTS() {
     currentCharIndex,
     setCurrentCharIndex,
     selectedVoiceProfileId,
+    currentBook,
+    skipRanges,
+    autoSkipEnabled,
   } = useBookMateStore()
 
   const sentencesRef = useRef<{ text: string; start: number; end: number }[]>([])
@@ -87,7 +91,18 @@ export function useTTS() {
   const consecutiveErrorCountRef = useRef(0)
   const voicesLoadedRef = useRef(false)
   const currentProfileRef = useRef<VoiceProfile | undefined>(undefined)
+  const skipRangesRef = useRef<SkipRange[]>([])
+  const autoSkipRef = useRef(false)
   const MAX_CONSECUTIVE_ERRORS = 3
+
+  // Keep skip refs in sync — used by speakSentence to skip omitted parts
+  useEffect(() => {
+    skipRangesRef.current = currentBook?.id ? skipRanges[currentBook.id] || [] : []
+  }, [currentBook?.id, skipRanges])
+
+  useEffect(() => {
+    autoSkipRef.current = autoSkipEnabled
+  }, [autoSkipEnabled])
 
   // Check if speech synthesis is supported
   const [speechSupported, setSpeechSupported] = useState(false)
@@ -216,8 +231,28 @@ export function useTTS() {
       return
     }
 
-    const sentence = sentences[sentenceIdx]
-    currentSentenceIndexRef.current = sentenceIdx
+    // ─── Skip omitted sentences (manual "No leer" ranges + auto noise detection) ───
+    let idx = sentenceIdx
+    while (idx < sentences.length) {
+      const s = sentences[idx]
+      const manuallySkipped = isSentenceSkipped(s.start, s.end, skipRangesRef.current)
+      const autoSkipped = autoSkipRef.current && isNoiseSentence(s.text)
+      if (!manuallySkipped && !autoSkipped) break
+      idx++
+    }
+
+    if (idx >= sentences.length) {
+      // Everything from here to the end is omitted — stop playback
+      safeCancel()
+      setIsPlaying(false)
+      isPlayingRef.current = false
+      setTtsStatus('idle')
+      setTtsError(null)
+      return
+    }
+
+    const sentence = sentences[idx]
+    currentSentenceIndexRef.current = idx
     setCurrentCharIndex(sentence.start)
 
     try {
@@ -263,7 +298,7 @@ export function useTTS() {
 
       utterance.onend = () => {
         if (isPlayingRef.current && !isPausedRef.current) {
-          speakSentenceRef.current(sentenceIdx + 1)
+          speakSentenceRef.current(idx + 1)
         }
       }
 
@@ -289,7 +324,7 @@ export function useTTS() {
         }
 
         if (isPlayingRef.current && !isPausedRef.current) {
-          setTimeout(() => speakSentenceRef.current(sentenceIdx + 1), 200)
+          setTimeout(() => speakSentenceRef.current(idx + 1), 200)
         }
       }
 

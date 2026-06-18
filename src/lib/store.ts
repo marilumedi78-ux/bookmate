@@ -1,7 +1,46 @@
 import { create } from 'zustand'
+import type { SkipRange } from './skip-utils'
+import { mergeRanges } from './skip-utils'
 
 export type TabType = 'library' | 'reader' | 'stats' | 'pricing'
 export type ReadingMode = 'visual' | 'audio' | 'both'
+
+// ─── localStorage persistence for "seleccionar qué no leer" ───
+const SKIP_RANGES_KEY = 'bookmate:skipRanges'
+const AUTO_SKIP_KEY = 'bookmate:autoSkip'
+
+function loadSkipRanges(): Record<string, SkipRange[]> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(SKIP_RANGES_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, SkipRange[]>
+  } catch {}
+  return {}
+}
+
+function persistSkipRanges(ranges: Record<string, SkipRange[]>): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SKIP_RANGES_KEY, JSON.stringify(ranges))
+  } catch {}
+}
+
+function loadAutoSkip(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(AUTO_SKIP_KEY) === '1'
+  } catch {}
+  return false
+}
+
+function persistAutoSkip(enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(AUTO_SKIP_KEY, enabled ? '1' : '0')
+  } catch {}
+}
 
 export interface BookItem {
   id: string
@@ -77,6 +116,15 @@ interface BookMateState {
   // Uses /lib/voice-profiles.ts — combines browser voice + pitch + rate for distinct characters
   selectedVoiceProfileId: string
   setSelectedVoiceProfileId: (id: string) => void
+
+  // "Seleccionar qué no leer" — manual skip ranges keyed by bookId + auto-skip toggle
+  skipRanges: Record<string, SkipRange[]>
+  autoSkipEnabled: boolean
+  setSkipRangesForBook: (bookId: string, ranges: SkipRange[]) => void
+  addSkipRange: (bookId: string, range: SkipRange) => void
+  removeSkipRangeAt: (bookId: string, index: number) => void
+  clearSkipRangesForBook: (bookId: string) => void
+  setAutoSkipEnabled: (enabled: boolean) => void
 
   // Sleep timer
   sleepTimer: number | null
@@ -163,6 +211,42 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   // Selected voice profile — default 'free-female' (works on all plans)
   selectedVoiceProfileId: 'free-female',
   setSelectedVoiceProfileId: (id) => set({ selectedVoiceProfileId: id }),
+
+  // "Seleccionar qué no leer" — manual skip ranges per book + auto-skip toggle
+  // Loaded from localStorage so the user's skip selections survive reloads.
+  skipRanges: loadSkipRanges(),
+  autoSkipEnabled: loadAutoSkip(),
+  setSkipRangesForBook: (bookId, ranges) =>
+    set((state) => {
+      const next = { ...state.skipRanges, [bookId]: mergeRanges(ranges) }
+      persistSkipRanges(next)
+      return { skipRanges: next }
+    }),
+  addSkipRange: (bookId, range) =>
+    set((state) => {
+      const existing = state.skipRanges[bookId] || []
+      const next = { ...state.skipRanges, [bookId]: mergeRanges([...existing, range]) }
+      persistSkipRanges(next)
+      return { skipRanges: next }
+    }),
+  removeSkipRangeAt: (bookId, index) =>
+    set((state) => {
+      const existing = state.skipRanges[bookId] || []
+      const nextRanges = existing.filter((_, i) => i !== index)
+      const next = { ...state.skipRanges, [bookId]: nextRanges }
+      persistSkipRanges(next)
+      return { skipRanges: next }
+    }),
+  clearSkipRangesForBook: (bookId) =>
+    set((state) => {
+      const next = { ...state.skipRanges, [bookId]: [] }
+      persistSkipRanges(next)
+      return { skipRanges: next }
+    }),
+  setAutoSkipEnabled: (enabled) => {
+    persistAutoSkip(enabled)
+    set({ autoSkipEnabled: enabled })
+  },
 
   // Sleep timer
   sleepTimer: null,
