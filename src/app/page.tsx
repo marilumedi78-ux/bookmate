@@ -460,6 +460,17 @@ export default function Home() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null)
 
+  // ── Premium Voice Preview (Cloudflare Workers AI) ──
+  const [showVoicePreview, setShowVoicePreview] = useState(false)
+  const [voicePreviewDismissed, setVoicePreviewDismissed] = useState(false)
+  // Load dismissal state from localStorage so banner doesn't nag after closing
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const dismissed = localStorage.getItem('bookmate-voice-preview-dismissed') === 'true'
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of localStorage value
+    setVoicePreviewDismissed(dismissed)
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
 
@@ -651,6 +662,49 @@ export default function Home() {
           )}
         </AnimatePresence>
 
+        {/* ── Premium Voice Preview Banner (Cloudflare Workers AI) ── */}
+        <AnimatePresence>
+          {!voicePreviewDismissed && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-amber-500/10 to-rose-500/10 border-b border-amber-500/20 px-4 py-3 flex items-center gap-3">
+                <div className="size-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <Sparkles className="size-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">Voces Premium disponibles</p>
+                  <p className="text-xs text-muted-foreground">Escucha la calidad audiolibro real</p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setShowVoicePreview(true)}
+                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Play className="size-3.5 mr-1" />
+                  Escuchar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  onClick={() => {
+                    setVoicePreviewDismissed(true)
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('bookmate-voice-preview-dismissed', 'true')
+                    }
+                  }}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── HEADER ── */}
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
           <div className="flex items-center justify-between px-4 h-14">
@@ -725,6 +779,99 @@ export default function Home() {
           </nav>
         </footer>
       </div>
+
+      {/* ── PREMIUM VOICE PREVIEW DIALOG (Cloudflare Workers AI samples) ── */}
+      <Dialog open={showVoicePreview} onOpenChange={setShowVoicePreview}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-amber-500" />
+              Voces Premium — Muestras
+            </DialogTitle>
+            <DialogDescription>
+              Escucha la diferencia entre la voz del navegador y la nueva voz neuronal premium (powered by Cloudflare Workers AI).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Sample 1: Intro */}
+            <div className="rounded-lg border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">1. Presentación</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    "Hola, soy tu voz de lectura premium..."
+                  </p>
+                </div>
+                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+              </div>
+              <audio controls className="w-full h-9" preload="metadata">
+                <source src="/samples/cf-sample-1-intro.wav" type="audio/wav" />
+                Tu navegador no soporta audio.
+              </audio>
+            </div>
+
+            {/* Sample 2: Literature */}
+            <div className="rounded-lg border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">2. Literatura (El Alquimista)</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    "El alquimista cogió un vaso lleno de líquido..."
+                  </p>
+                </div>
+                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+              </div>
+              <audio controls className="w-full h-9" preload="metadata">
+                <source src="/samples/cf-sample-2-literature.wav" type="audio/wav" />
+                Tu navegador no soporta audio.
+              </audio>
+            </div>
+
+            {/* Sample 3: Narrative */}
+            <div className="rounded-lg border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">3. Narrativa larga</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    "Cuando era niño, soñaba con viajar..."
+                  </p>
+                </div>
+                <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
+              </div>
+              <audio controls className="w-full h-9" preload="metadata">
+                <source src="/samples/cf-sample-3-narrative.wav" type="audio/wav" />
+                Tu navegador no soporta audio.
+              </audio>
+            </div>
+
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+              <p className="font-semibold flex items-center gap-1.5">
+                <Sparkles className="size-3.5" />
+                ¿Qué opinas?
+              </p>
+              <p>
+                Si te gusta la calidad, puedo integrar estas voces en toda la app para que tus libros suenen así. Avísame qué piensas.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowVoicePreview(false)
+                setVoicePreviewDismissed(true)
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('bookmate-voice-preview-dismissed', 'true')
+                }
+              }}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
