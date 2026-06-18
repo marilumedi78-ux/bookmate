@@ -5,6 +5,7 @@ import { useBookMateStore } from './store'
 import {
   getVoiceProfile,
   findBrowserVoiceForGender,
+  isPremiumVoice,
   VOICE_PREVIEW_TEXT,
   type VoiceProfile,
 } from './voice-profiles'
@@ -94,6 +95,39 @@ export function useTTS() {
   const skipRangesRef = useRef<SkipRange[]>([])
   const autoSkipRef = useRef(false)
   const MAX_CONSECUTIVE_ERRORS = 3
+
+  // ─── Premium TTS engine (HTML5 Audio via /api/tts-premium) ───
+  // Used when currentProfile.engine === 'premium'. We keep a single Audio element
+  // and reuse it across sentences.
+  const premiumAudioRef = useRef<HTMLAudioElement | null>(null)
+  const premiumSentenceIdxRef = useRef<number>(-1)
+  const premiumAbortRef = useRef<boolean>(false)
+
+  // Get (or lazily create) the shared premium audio element
+  const getPremiumAudio = useCallback((): HTMLAudioElement | null => {
+    if (typeof window === 'undefined') return null
+    if (!premiumAudioRef.current) {
+      const audio = new Audio()
+      audio.preload = 'auto'
+      // Apply playback speed (HTML5 Audio supports playbackRate 0.5–2.0)
+      audio.playbackRate = playbackSpeedRef.current || 1
+      premiumAudioRef.current = audio
+    }
+    return premiumAudioRef.current
+  }, [])
+
+  // Stop premium playback and abort any pending fetch
+  const stopPremium = useCallback(() => {
+    premiumAbortRef.current = true
+    const audio = premiumAudioRef.current
+    if (audio) {
+      try {
+        audio.pause()
+        audio.removeAttribute('src')
+        audio.load() // releases any pending fetch
+      } catch {}
+    }
+  }, [])
 
   // Keep skip refs in sync — used by speakSentence to skip omitted parts
   useEffect(() => {
@@ -212,11 +246,96 @@ export function useTTS() {
     return 0
   }, [])
 
+  // ─── Premium engine: play one sentence via /api/tts-premium ───
+  const speakSentencePremium = useCallback((idx: number, text: string, voiceId: string) => {
+    const audio = getPremiumAudio()
+    if (!audio) {
+      setTtsStatus('error')
+      setTtsError('Tu navegador no soporta audio HTML5.')
+      setIsPlaying(false)
+      isPlayingRef.current = false
+      return
+    }
+
+    // Cancel any pending browser TTS so the two engines don't overlap
+    safeCancel()
+
+    // Mark this sentence as the "currently playing" premium one
+    premiumSentenceIdxRef.current = idx
+    premiumAbortRef.current = false
+
+    // Reset error count on a fresh play
+    consecutiveErrorCountRef.current = 0
+
+    // Build URL. Same text+voice = same audio = cacheable on the server.
+    const url = `/api/tts-premium?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(text)}`
+
+    // Set up event handlers (on* props overwrite previous handlers)
+    audio.onplaying = () => {
+      setTtsStatus('playing')
+      setTtsError(null)
+    }
+    audio.onended = () => {
+      if (premiumAbortRef.current) return
+      if (isPlayingRef.current && !isPausedRef.current) {
+        // Advance to next sentence
+        const nextIdx = premiumSentenceIdxRef.current + 1
+        speakSentenceRef.current(nextIdx)
+      }
+    }
+    audio.onerror = () => {
+      if (premiumAbortRef.current) return
+      consecutiveErrorCountRef.current += 1
+      if (consecutiveErrorCountRef.current >= MAX_CONSECUTIVE_ERRORS) {
+        setTtsStatus('error')
+        setTtsError('No se pudo generar el audio premium. Intenta de nuevo.')
+        setIsPlaying(false)
+        isPlayingRef.current = false
+        isPausedRef.current = false
+        return
+      }
+      // Skip to next sentence on error
+      if (isPlayingRef.current && !isPausedRef.current) {
+        setTimeout(() => {
+          const nextIdx = premiumSentenceIdxRef.current + 1
+          speakSentenceRef.current(nextIdx)
+        }, 200)
+      }
+    }
+
+    // Apply current playback speed (in case it changed)
+    audio.playbackRate = playbackSpeedRef.current || 1
+
+    // Load the new URL and play
+    audio.src = url
+    audio.load()
+
+    // Show loading state until audio starts playing
+    setTtsStatus('loading')
+    setTtsError(null)
+
+    // play() returns a promise that rejects if autoplay is blocked.
+    // We rely on user having clicked play already, so this should be allowed.
+    audio.play().catch((err) => {
+      if (premiumAbortRef.current) return
+      console.warn('[premium-tts] play() rejected:', err)
+      setTtsStatus('error')
+      setTtsError('No se pudo iniciar la reproducción. Toca play de nuevo.')
+      setIsPlaying(false)
+      isPlayingRef.current = false
+    })
+  }, [getPremiumAudio, setIsPlaying])
+
   // Speak a single sentence — wrapped in try-catch to prevent client-side crash
   const speakSentence = useCallback((sentenceIdx: number) => {
     const sentences = sentencesRef.current
 
-    if (!speechSupported) {
+    // Note: premium voices use HTML5 Audio, not speechSynthesis, so they work even
+    // when speechSupported is false. We only bail here if there's no text to read.
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+
+    if (!speechSupported && !isPremium) {
       setIsPlaying(false)
       isPlayingRef.current = false
       return
@@ -224,6 +343,7 @@ export function useTTS() {
 
     if (sentenceIdx >= sentences.length) {
       safeCancel()
+      stopPremium()
       setIsPlaying(false)
       isPlayingRef.current = false
       setTtsStatus('idle')
@@ -244,6 +364,7 @@ export function useTTS() {
     if (idx >= sentences.length) {
       // Everything from here to the end is omitted — stop playback
       safeCancel()
+      stopPremium()
       setIsPlaying(false)
       isPlayingRef.current = false
       setTtsStatus('idle')
@@ -255,10 +376,24 @@ export function useTTS() {
     currentSentenceIndexRef.current = idx
     setCurrentCharIndex(sentence.start)
 
+    // ─── Dispatch to premium engine if the current profile is a Deepgram voice ───
+    if (isPremium && profile?.premiumVoiceId) {
+      // Premium engine uses HTML5 Audio via /api/tts-premium (no speechSynthesis).
+      // We do NOT require speechSupported here — only an audio element.
+      speakSentencePremium(idx, sentence.text, profile.premiumVoiceId)
+      return
+    }
+
+    // Browser engine requires speechSynthesis support
+    if (!speechSupported) {
+      setIsPlaying(false)
+      isPlayingRef.current = false
+      return
+    }
+
     try {
       const utterance = new SpeechSynthesisUtterance(sentence.text)
       // Combine playback speed with profile rate
-      const profile = currentProfileRef.current
       const profileRate = profile?.rate ?? 1.0
       utterance.rate = Math.min(2.0, Math.max(0.5, playbackSpeedRef.current * profileRate))
       utterance.pitch = profile?.pitch ?? 1.0
@@ -349,7 +484,7 @@ export function useTTS() {
       setIsPlaying(false)
       isPlayingRef.current = false
     }
-  }, [speechSupported, setCurrentCharIndex, setIsPlaying])
+  }, [speechSupported, setCurrentCharIndex, setIsPlaying, speakSentencePremium, stopPremium])
 
   // Keep the ref updated
   useEffect(() => {
@@ -358,17 +493,39 @@ export function useTTS() {
 
   // ─── Preview a voice profile (play sample text without affecting playback) ───
   const previewVoice = useCallback((profileId: string) => {
+    const profile = getVoiceProfile(profileId)
+    if (!profile) return
+
+    // Stop any current playback first (both engines)
+    safeCancel()
+    stopPremium()
+
+    // ─── Premium voice: play the static preview MP3 via HTML5 Audio ───
+    if (isPremiumVoice(profile) && profile.previewUrl) {
+      const audio = getPremiumAudio()
+      if (!audio) {
+        setTtsError('Tu navegador no soporta audio HTML5.')
+        return
+      }
+      premiumAbortRef.current = false
+      audio.onplaying = () => { setTtsError(null) }
+      audio.onended = () => { /* preview ends — no auto-advance */ }
+      audio.onerror = () => { setTtsError('No se pudo cargar la muestra de voz.') }
+      audio.playbackRate = 1
+      audio.src = profile.previewUrl
+      audio.load()
+      audio.play().catch(() => {
+        setTtsError('Toca de nuevo para reproducir la muestra.')
+      })
+      return
+    }
+
+    // ─── Browser voice: use speechSynthesis ───
     if (!speechSupported) {
       setTtsStatus('not-supported')
       setTtsError('Tu navegador no soporta lectura en voz alta')
       return
     }
-
-    const profile = getVoiceProfile(profileId)
-    if (!profile) return
-
-    // Stop any current playback first
-    safeCancel()
 
     try {
       const utterance = new SpeechSynthesisUtterance(VOICE_PREVIEW_TEXT)
@@ -399,16 +556,21 @@ export function useTTS() {
     } catch (err) {
       setTtsError('No se pudo reproducir la muestra de voz')
     }
-  }, [speechSupported])
+  }, [speechSupported, getPremiumAudio, stopPremium])
 
   // Stop any voice preview (or playback)
   const stopPreview = useCallback(() => {
     safeCancel()
-  }, [])
+    stopPremium()
+  }, [stopPremium])
 
   // Start playing from current position
   const play = useCallback(() => {
-    if (!speechSupported) {
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+
+    // Premium voices don't require speechSupported — they use HTML5 Audio
+    if (!speechSupported && !isPremium) {
       setTtsStatus('not-supported')
       setTtsError('Tu navegador no soporta lectura en voz alta')
       return
@@ -422,17 +584,31 @@ export function useTTS() {
 
     // If paused, resume
     if (isPausedRef.current) {
-      try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume()
+      // Premium resume: just call audio.play() on the existing element
+      if (isPremium) {
+        const audio = premiumAudioRef.current
+        if (audio && audio.src) {
           isPausedRef.current = false
           setIsPlaying(true)
           isPlayingRef.current = true
           setTtsStatus('playing')
+          audio.play().catch(() => {})
           return
         }
-      } catch {
-        // Speech API unavailable, fall through to restart
+        // No existing audio — fall through to fresh start
+      } else {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume()
+            isPausedRef.current = false
+            setIsPlaying(true)
+            isPlayingRef.current = true
+            setTtsStatus('playing')
+            return
+          }
+        } catch {
+          // Speech API unavailable, fall through to restart
+        }
       }
       isPausedRef.current = false
     }
@@ -450,12 +626,23 @@ export function useTTS() {
 
   // Pause playback
   const pause = useCallback(() => {
-    if (!speechSupported) return
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+
+    if (!speechSupported && !isPremium) return
 
     isPausedRef.current = true
     isPlayingRef.current = false
     setIsPlaying(false)
     setTtsStatus('paused')
+
+    if (isPremium) {
+      const audio = premiumAudioRef.current
+      if (audio) {
+        try { audio.pause() } catch {}
+      }
+      return
+    }
 
     try {
       if (window.speechSynthesis.speaking) {
@@ -473,21 +660,28 @@ export function useTTS() {
 
   // Stop playback completely
   const stop = useCallback(() => {
-    if (!speechSupported) return
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+
+    if (!speechSupported && !isPremium) return
     isPausedRef.current = false
     isPlayingRef.current = false
     setIsPlaying(false)
     setTtsStatus('idle')
     setTtsError(null)
     safeCancel()
-  }, [speechSupported, setIsPlaying])
+    stopPremium()
+  }, [speechSupported, setIsPlaying, stopPremium])
 
   // Skip forward by ~10 sentences
   const skipForward = useCallback(() => {
-    if (!speechSupported) return
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+    if (!speechSupported && !isPremium) return
 
     const wasPlaying = isPlayingRef.current
     safeCancel()
+    stopPremium()
 
     const nextIdx = Math.min(
       currentSentenceIndexRef.current + 10,
@@ -500,14 +694,17 @@ export function useTTS() {
       isPausedRef.current = false
       setTimeout(() => speakSentenceRef.current(nextIdx), 150)
     }
-  }, [speechSupported, setCurrentCharIndex])
+  }, [speechSupported, setCurrentCharIndex, stopPremium])
 
   // Skip backward by ~10 sentences
   const skipBack = useCallback(() => {
-    if (!speechSupported) return
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+    if (!speechSupported && !isPremium) return
 
     const wasPlaying = isPlayingRef.current
     safeCancel()
+    stopPremium()
 
     const prevIdx = Math.max(currentSentenceIndexRef.current - 10, 0)
     currentSentenceIndexRef.current = prevIdx
@@ -517,14 +714,17 @@ export function useTTS() {
       isPausedRef.current = false
       setTimeout(() => speakSentenceRef.current(prevIdx), 150)
     }
-  }, [speechSupported, setCurrentCharIndex])
+  }, [speechSupported, setCurrentCharIndex, stopPremium])
 
   // Jump to a specific character position
   const seekTo = useCallback((charIdx: number) => {
-    if (!speechSupported) return
+    const profile = currentProfileRef.current
+    const isPremium = isPremiumVoice(profile)
+    if (!speechSupported && !isPremium) return
 
     const wasPlaying = isPlayingRef.current
     safeCancel()
+    stopPremium()
 
     const sentenceIdx = findSentenceIndex(charIdx)
     currentSentenceIndexRef.current = sentenceIdx
@@ -534,15 +734,25 @@ export function useTTS() {
       isPausedRef.current = false
       setTimeout(() => speakSentenceRef.current(sentenceIdx), 150)
     }
-  }, [speechSupported, findSentenceIndex, setCurrentCharIndex])
+  }, [speechSupported, findSentenceIndex, setCurrentCharIndex, stopPremium])
 
   // Handle speed changes while playing
   useEffect(() => {
+    // Update premium audio playbackRate immediately
+    const audio = premiumAudioRef.current
+    if (audio) {
+      audio.playbackRate = playbackSpeed || 1
+    }
+    // Restart browser TTS with new speed if currently playing
     if (isPlayingRef.current && speechSupported) {
-      const currentIdx = currentSentenceIndexRef.current
-      safeCancel()
-      isPausedRef.current = false
-      setTimeout(() => speakSentenceRef.current(currentIdx), 150)
+      const profile = currentProfileRef.current
+      if (!isPremiumVoice(profile)) {
+        const currentIdx = currentSentenceIndexRef.current
+        safeCancel()
+        isPausedRef.current = false
+        setTimeout(() => speakSentenceRef.current(currentIdx), 150)
+      }
+      // Premium audio playbackRate is already updated above — no restart needed
     }
   }, [playbackSpeed, speechSupported])
 
@@ -550,19 +760,21 @@ export function useTTS() {
   useEffect(() => {
     return () => {
       safeCancel()
+      stopPremium()
     }
-  }, [])
+  }, [stopPremium])
 
   // Stop playing when book text changes (direct cancel, no setState in effect)
   useEffect(() => {
     if (bookText && speechSupported) {
       safeCancel()
+      stopPremium()
       isPlayingRef.current = false
       isPausedRef.current = false
       currentSentenceIndexRef.current = 0
       setIsPlaying(false)
     }
-  }, [bookText, speechSupported, setIsPlaying])
+  }, [bookText, speechSupported, setIsPlaying, stopPremium])
 
   // Memoize return object to prevent unnecessary re-renders
   return useMemo(() => ({

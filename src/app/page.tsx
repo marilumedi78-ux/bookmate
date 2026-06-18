@@ -789,94 +789,138 @@ export default function Home() {
               Voces Premium en Español
             </DialogTitle>
             <DialogDescription>
-              10 voces neuronales nativas en español (Deepgram Aura). Estas son las voces que tendrán los planes Plus y Pro.
+              10 voces neuronales nativas en español (Deepgram Aura). Disponibles en los planes Plus y Pro.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Female voices section */}
+            {/* ─── PLUS plan voices (6) ─── */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <span className="text-rose-500">♀</span> Voces Femeninas
-              </p>
-              <div className="rounded-lg border bg-card p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Stella — Presentación</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      "Hola, soy tu voz de lectura premium..."
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
-                </div>
-                <audio controls className="w-full h-9" preload="metadata">
-                  <source src="/samples/dg-stella-intro.mp3" type="audio/mpeg" />
-                  Tu navegador no soporta audio.
-                </audio>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Sparkles className="size-3 text-amber-500" />
+                  Plan Plus · 6 voces
+                </p>
+                <Badge variant="secondary" className="text-[10px]">Premium</Badge>
               </div>
 
-              <div className="rounded-lg border bg-card p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Stella — Literatura (El Alquimista)</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      "El alquimista cogió un vaso lleno de líquido..."
-                    </p>
+              {/* Female Plus voices */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground px-1">
+                  <span className="text-rose-500">♀</span> Femeninas
+                </p>
+                {[
+                  { id: 'stella', name: 'Stella', desc: 'Cálida narrativa' },
+                  { id: 'luna', name: 'Luna', desc: 'Suave y dulce' },
+                  { id: 'athena', name: 'Atenea', desc: 'Clara y profesional' },
+                ].map((v) => (
+                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
+                      </div>
+                    </div>
+                    <audio controls className="w-full h-8" preload="none">
+                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
+                      Tu navegador no soporta audio.
+                    </audio>
                   </div>
-                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
-                </div>
-                <audio controls className="w-full h-9" preload="metadata">
-                  <source src="/samples/dg-stella-literature.mp3" type="audio/mpeg" />
-                  Tu navegador no soporta audio.
-                </audio>
+                ))}
+              </div>
+
+              {/* Male Plus voices */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground px-1">
+                  <span className="text-blue-500">♂</span> Masculinas
+                </p>
+                {[
+                  { id: 'arcas', name: 'Arcas', desc: 'Cálida y amigable' },
+                  { id: 'helios', name: 'Helios', desc: 'Clara y enérgica' },
+                  { id: 'eros', name: 'Eros', desc: 'Suave y juvenil' },
+                ].map((v) => (
+                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
+                      </div>
+                    </div>
+                    <audio controls className="w-full h-8" preload="none">
+                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
+                      Tu navegador no soporta audio.
+                    </audio>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Male voices section */}
+            {/* ─── PRO plan voices (4 more) ─── */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <span className="text-blue-500">♂</span> Voces Masculinas
-              </p>
-              <div className="rounded-lg border bg-card p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Zeus — Presentación</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      "Hola, soy tu voz de lectura premium..."
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
-                </div>
-                <audio controls className="w-full h-9" preload="metadata">
-                  <source src="/samples/dg-zeus-intro.mp3" type="audio/mpeg" />
-                  Tu navegador no soporta audio.
-                </audio>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Crown className="size-3 text-amber-500" />
+                  Plan Pro · 4 voces extra
+                </p>
+                <Badge variant="secondary" className="text-[10px]">Premium</Badge>
               </div>
 
-              <div className="rounded-lg border bg-card p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Zeus — Literatura (El Alquimista)</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      "El alquimista cogió un vaso lleno de líquido..."
-                    </p>
+              {/* Female Pro voices */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground px-1">
+                  <span className="text-rose-500">♀</span> Femeninas
+                </p>
+                {[
+                  { id: 'hera', name: 'Hera', desc: 'Profunda y elegante' },
+                  { id: 'diana', name: 'Diana', desc: 'Joven y energética' },
+                ].map((v) => (
+                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
+                      </div>
+                    </div>
+                    <audio controls className="w-full h-8" preload="none">
+                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
+                      Tu navegador no soporta audio.
+                    </audio>
                   </div>
-                  <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">Premium</Badge>
-                </div>
-                <audio controls className="w-full h-9" preload="metadata">
-                  <source src="/samples/dg-zeus-literature.mp3" type="audio/mpeg" />
-                  Tu navegador no soporta audio.
-                </audio>
+                ))}
+              </div>
+
+              {/* Male Pro voices */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground px-1">
+                  <span className="text-blue-500">♂</span> Masculinas
+                </p>
+                {[
+                  { id: 'orion', name: 'Orión', desc: 'Grave y envolvente' },
+                  { id: 'zeus', name: 'Zeus', desc: 'Profunda y autoritaria' },
+                ].map((v) => (
+                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
+                      </div>
+                    </div>
+                    <audio controls className="w-full h-8" preload="none">
+                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
+                      Tu navegador no soporta audio.
+                    </audio>
+                  </div>
+                ))}
               </div>
             </div>
 
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
               <p className="font-semibold flex items-center gap-1.5">
                 <Sparkles className="size-3.5" />
-                ¿Qué opinas?
+                ¿Cómo usarlas?
               </p>
               <p>
-                Estas son 2 de las 10 voces disponibles. Si te gusta la calidad, las integro en toda la app para tus libros.
+                Al subir a plan Plus o Pro, podrás elegir cualquiera de estas voces desde el selector de voz en el lector. Toca ▶ en cualquier voz para escucharla.
               </p>
             </div>
           </div>
@@ -2807,7 +2851,7 @@ function ReaderTab() {
                   <Volume2 className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-72">
+              <DropdownMenuContent align="start" className="w-72 max-h-[60vh] overflow-y-auto">
                 <DropdownMenuLabel className="flex items-center justify-between">
                   <span>Voces</span>
                   <span className="text-[10px] font-normal text-muted-foreground">
@@ -2816,80 +2860,105 @@ function ReaderTab() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                {/* Voice profile list — show profiles available for current plan + locked premium ones */}
-                {VOICE_PROFILES.map((v) => {
+                {/* Voice profile list — grouped by plan, with locked premium ones */}
+                {(() => {
                   const planLevel = { free: 0, plus: 1, pro: 2 }
                   const userLevel = planLevel[plan as 'free' | 'plus' | 'pro']
-                  const voiceLevel = planLevel[v.plan]
-                  const isLocked = voiceLevel > userLevel
-                  const isSelected = selectedVoiceProfileId === v.id
-                  const genderIcon = v.gender === 'female' ? '♀' : '♂'
 
-                  if (isLocked) {
+                  // Group voices by plan tier
+                  const groups: { label: string; voices: typeof VOICE_PROFILES }[] = [
+                    { label: 'Básicas (navegador)', voices: VOICE_PROFILES.filter(v => v.plan === 'free') },
+                    { label: 'Premium · Plus', voices: VOICE_PROFILES.filter(v => v.plan === 'plus') },
+                    { label: 'Premium · Pro', voices: VOICE_PROFILES.filter(v => v.plan === 'pro') },
+                  ]
+
+                  return groups.map((group) => {
+                    if (group.voices.length === 0) return null
                     return (
-                      <DropdownMenuItem
-                        key={v.id}
-                        className="text-muted-foreground"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          stopPreview()
-                          setShowUpgradeModal('ia-voice')
-                        }}
-                      >
-                        <Lock className="size-3.5 mr-1.5 shrink-0" />
-                        <span className="mr-1 text-xs">{genderIcon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm flex items-center gap-1.5">
-                            {v.name}
-                            {v.badge && (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
-                                {v.badge}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
+                      <div key={group.label}>
+                        <DropdownMenuSeparator />
+                        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.label}
                         </div>
-                      </DropdownMenuItem>
-                    )
-                  }
+                        {group.voices.map((v) => {
+                          const voiceLevel = planLevel[v.plan]
+                          const isLocked = voiceLevel > userLevel
+                          const isSelected = selectedVoiceProfileId === v.id
+                          const genderIcon = v.gender === 'female' ? '♀' : '♂'
+                          const isPremium = v.engine === 'premium'
 
-                  return (
-                    <DropdownMenuItem
-                      key={v.id}
-                      onClick={() => {
-                        stopPreview()
-                        setSelectedVoiceProfileId(v.id)
-                      }}
-                      className={isSelected ? 'bg-primary/10' : ''}
-                    >
-                      <span className="mr-1.5 text-xs shrink-0">{genderIcon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm flex items-center gap-1.5">
-                          {v.name}
-                          {v.badge && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
-                              {v.badge}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
+                          if (isLocked) {
+                            return (
+                              <DropdownMenuItem
+                                key={v.id}
+                                className="text-muted-foreground"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  stopPreview()
+                                  setShowUpgradeModal('ia-voice')
+                                }}
+                              >
+                                <Lock className="size-3.5 mr-1.5 shrink-0" />
+                                <span className="mr-1 text-xs">{genderIcon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm flex items-center gap-1.5">
+                                    {v.name}
+                                    {v.badge && (
+                                      <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                                        {v.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
+                                </div>
+                              </DropdownMenuItem>
+                            )
+                          }
+
+                          return (
+                            <DropdownMenuItem
+                              key={v.id}
+                              onClick={() => {
+                                stopPreview()
+                                setSelectedVoiceProfileId(v.id)
+                              }}
+                              className={isSelected ? 'bg-primary/10' : ''}
+                            >
+                              <span className="mr-1.5 text-xs shrink-0">{genderIcon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm flex items-center gap-1.5">
+                                  {v.name}
+                                  {isPremium && (
+                                    <Sparkles className="size-3 text-amber-500" />
+                                  )}
+                                  {v.badge && (
+                                    <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                                      {v.badge}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate">{v.desc}</div>
+                              </div>
+                              {/* Preview play button — stops propagation so it doesn't close the dropdown */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  previewVoice(v.id)
+                                }}
+                                className="size-6 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors mr-1"
+                                aria-label={`Probar voz de ${v.name}`}
+                              >
+                                <Play className="size-3" />
+                              </button>
+                              {isSelected && <Check className="size-3.5 shrink-0" />}
+                            </DropdownMenuItem>
+                          )
+                        })}
                       </div>
-                      {/* Preview play button — stops propagation so it doesn't close the dropdown */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          previewVoice(v.id)
-                        }}
-                        className="size-6 rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors mr-1"
-                        aria-label={`Probar voz de ${v.name}`}
-                      >
-                        <Play className="size-3" />
-                      </button>
-                      {isSelected && <Check className="size-3.5 shrink-0" />}
-                    </DropdownMenuItem>
-                  )
-                })}
+                    )
+                  })
+                })()}
 
                 <DropdownMenuSeparator />
                 <div className="px-2 py-1.5 text-[10px] text-muted-foreground flex items-center gap-1.5">
@@ -4350,7 +4419,7 @@ function PricingTab() {
       popular: true,
       features: [
         'Hasta 20 libros',
-        '6 voces premium con personalidad',
+        '6 voces premium neuronales (español nativo)',
         'Probar voces antes de elegir',
         'Subrayados ilimitados',
         '10 Explica/mes',
@@ -4369,7 +4438,7 @@ function PricingTab() {
       annualMonthly: '$10.83/mes',
       features: [
         'Libros ilimitados',
-        '8 voces premium (incl. narrador de audiolibros)',
+        '10 voces premium neuronales (todas)',
         'Explica ilimitado + en voz alta',
         'Resumen IA del libro (3 ideas + 5 citas)',
         'Gráfico de emociones por capítulo',

@@ -14,15 +14,18 @@ export interface VoiceProfile {
   voiceURI: string | null  // null = use best available Spanish voice of matching gender
   plan: 'free' | 'plus' | 'pro'  // Minimum plan required
   badge?: string        // Optional badge like "Premium" or "Pro"
+  engine?: 'browser' | 'premium'  // 'browser' = Web Speech API (free); 'premium' = Deepgram via /api/tts-premium
+  premiumVoiceId?: string  // When engine='premium', the Deepgram voice id (e.g. 'stella')
+  previewUrl?: string   // When engine='premium', URL to a static preview MP3
 }
 
 // ─── Voice profiles organized by plan ───
-// Free: 2 basic voices (just gender selection, normal pitch/rate)
-// Plus: 6 voice characters with distinct pitch/rate combos
-// Pro: 8 voice characters including extreme/expression options
+// Free: 2 basic browser voices (just gender selection)
+// Plus: 6 neural Deepgram voices (3F + 3M) — native Spanish
+// Pro: 4 more neural Deepgram voices (2F + 2M) — most distinctive
 
 export const VOICE_PROFILES: VoiceProfile[] = [
-  // ─── FREE (2 basic voices) ───
+  // ─── FREE (2 basic browser voices via Web Speech API) ───
   {
     id: 'free-female',
     name: 'Mujer',
@@ -32,6 +35,7 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     rate: 1.0,
     voiceURI: null,
     plan: 'free',
+    engine: 'browser',
   },
   {
     id: 'free-male',
@@ -42,98 +46,151 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     rate: 1.0,
     voiceURI: null,
     plan: 'free',
+    engine: 'browser',
   },
 
-  // ─── PLUS (6 voice characters with distinct personalities) ───
+  // ─── PLUS (6 neural Deepgram voices: 3F + 3M) ───
   {
-    id: 'sofia',
-    name: 'Sofía',
-    desc: 'Cálida y amigable',
+    id: 'pv-stella',
+    name: 'Stella',
+    desc: 'Cálida narrativa femenina',
     gender: 'female',
-    pitch: 1.1,
-    rate: 0.95,
-    voiceURI: null,
-    plan: 'plus',
-    badge: 'Plus',
-  },
-  {
-    id: 'mateo',
-    name: 'Mateo',
-    desc: 'Profesional y claro',
-    gender: 'male',
-    pitch: 0.9,
+    pitch: 1.0,
     rate: 1.0,
     voiceURI: null,
     plan: 'plus',
     badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'stella',
+    previewUrl: '/samples/voice-stella.mp3',
   },
   {
-    id: 'lucia',
-    name: 'Lucía',
-    desc: 'Joven y natural',
-    gender: 'female',
-    pitch: 1.3,
-    rate: 1.05,
-    voiceURI: null,
-    plan: 'plus',
-    badge: 'Plus',
-  },
-  {
-    id: 'daniel',
-    name: 'Daniel',
-    desc: 'Grave y envolvente',
-    gender: 'male',
-    pitch: 0.7,
-    rate: 0.9,
-    voiceURI: null,
-    plan: 'plus',
-    badge: 'Plus',
-  },
-  {
-    id: 'valeria',
-    name: 'Valeria',
-    desc: 'Energética y alegre',
-    gender: 'female',
-    pitch: 1.5,
-    rate: 1.1,
-    voiceURI: null,
-    plan: 'plus',
-    badge: 'Plus',
-  },
-  {
-    id: 'andres',
-    name: 'Andrés',
-    desc: 'Sereno y pausado',
-    gender: 'male',
-    pitch: 0.85,
-    rate: 0.85,
-    voiceURI: null,
-    plan: 'plus',
-    badge: 'Plus',
-  },
-
-  // ─── PRO (2 additional expressive voices) ───
-  {
-    id: 'isabela',
-    name: 'Isabela',
-    desc: 'Narradora de audiolibros',
+    id: 'pv-luna',
+    name: 'Luna',
+    desc: 'Suave y dulce',
     gender: 'female',
     pitch: 1.0,
-    rate: 0.92,
+    rate: 1.0,
     voiceURI: null,
-    plan: 'pro',
-    badge: 'Pro',
+    plan: 'plus',
+    badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'luna',
+    previewUrl: '/samples/voice-luna.mp3',
   },
   {
-    id: 'alejandro',
-    name: 'Alejandro',
-    desc: 'Voz teatral y profunda',
+    id: 'pv-athena',
+    name: 'Atenea',
+    desc: 'Clara y profesional',
+    gender: 'female',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'plus',
+    badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'athena',
+    previewUrl: '/samples/voice-athena.mp3',
+  },
+  {
+    id: 'pv-arcas',
+    name: 'Arcas',
+    desc: 'Cálida y amigable',
     gender: 'male',
-    pitch: 0.6,
-    rate: 0.88,
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'plus',
+    badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'arcas',
+    previewUrl: '/samples/voice-arcas.mp3',
+  },
+  {
+    id: 'pv-helios',
+    name: 'Helios',
+    desc: 'Clara y enérgica',
+    gender: 'male',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'plus',
+    badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'helios',
+    previewUrl: '/samples/voice-helios.mp3',
+  },
+  {
+    id: 'pv-eros',
+    name: 'Eros',
+    desc: 'Suave y juvenil',
+    gender: 'male',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'plus',
+    badge: 'Plus',
+    engine: 'premium',
+    premiumVoiceId: 'eros',
+    previewUrl: '/samples/voice-eros.mp3',
+  },
+
+  // ─── PRO (4 additional distinctive Deepgram voices: 2F + 2M) ───
+  {
+    id: 'pv-hera',
+    name: 'Hera',
+    desc: 'Profunda y elegante',
+    gender: 'female',
+    pitch: 1.0,
+    rate: 1.0,
     voiceURI: null,
     plan: 'pro',
     badge: 'Pro',
+    engine: 'premium',
+    premiumVoiceId: 'hera',
+    previewUrl: '/samples/voice-hera.mp3',
+  },
+  {
+    id: 'pv-diana',
+    name: 'Diana',
+    desc: 'Joven y energética',
+    gender: 'female',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'pro',
+    badge: 'Pro',
+    engine: 'premium',
+    premiumVoiceId: 'diana',
+    previewUrl: '/samples/voice-diana.mp3',
+  },
+  {
+    id: 'pv-orion',
+    name: 'Orión',
+    desc: 'Grave y envolvente',
+    gender: 'male',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'pro',
+    badge: 'Pro',
+    engine: 'premium',
+    premiumVoiceId: 'orion',
+    previewUrl: '/samples/voice-orion.mp3',
+  },
+  {
+    id: 'pv-zeus',
+    name: 'Zeus',
+    desc: 'Profunda y autoritaria',
+    gender: 'male',
+    pitch: 1.0,
+    rate: 1.0,
+    voiceURI: null,
+    plan: 'pro',
+    badge: 'Pro',
+    engine: 'premium',
+    premiumVoiceId: 'zeus',
+    previewUrl: '/samples/voice-zeus.mp3',
   },
 ]
 
@@ -155,7 +212,12 @@ export const DEFAULT_VOICE_PROFILE_ID = 'free-female'
 // Preview text for testing voices
 export const VOICE_PREVIEW_TEXT = 'Hola, soy tu voz de lectura. Así es como sonaré cuando lea tus libros favoritos.'
 
-// Find the best matching browser voice for a profile's gender
+// Find the best matching browser voice for a profile's gender.
+// BUG FIX (previous version): when no gender-specific voice was found, it fell back
+// to `pool[0]` which on many devices is a FEMALE voice — so selecting "Hombre" still
+// sounded female. Now we explicitly return null when no matching gender voice exists,
+// letting the caller handle the fallback (e.g. show a notice) instead of silently
+// using the wrong gender.
 export function findBrowserVoiceForGender(
   voices: SpeechSynthesisVoice[],
   gender: 'female' | 'male'
@@ -170,13 +232,13 @@ export function findBrowserVoiceForGender(
     'helena', 'sabina', 'laura', 'carmen', 'elvira', 'monica', 'paulina',
     'marisol', 'sofia', 'lucia', 'valeria', 'isabela', 'mónica', 'lucía',
     'female', 'mujer', 'femenina', 'google español', 'google us español',
-    'mónica', 'paula', 'esperanza',
+    'mónica', 'paula', 'esperanza', 'mujer español',
   ]
   // Known male voice name patterns
   const maleNames = [
     'pablo', 'jorge', 'miguel', 'enrique', 'carlos', 'diego', 'juan',
     'mateo', 'daniel', 'andres', 'andrés', 'alejandro', 'male', 'hombre',
-    'masculino', 'javier', 'raúl', 'raul',
+    'masculino', 'javier', 'raúl', 'raul', 'hombre español',
   ]
 
   const names = gender === 'female' ? femaleNames : maleNames
@@ -187,10 +249,23 @@ export function findBrowserVoiceForGender(
 
   if (match) return match
 
-  // Fallback: prefer local Spanish voices
+  // Prefer a local Spanish voice of the correct gender over a remote one.
+  // (Local voices often have gender cues in their names.)
   const localSpanish = pool.find(v => v.localService && v.lang?.toLowerCase().startsWith('es'))
-  if (localSpanish) return localSpanish
+  if (localSpanish) {
+    // Only use it if its name doesn't strongly suggest the opposite gender
+    const n = localSpanish.name.toLowerCase()
+    const oppositeNames = gender === 'female' ? maleNames : femaleNames
+    const stronglyOpposite = oppositeNames.some(p => n.includes(p))
+    if (!stronglyOpposite) return localSpanish
+  }
 
-  // Final fallback: first available voice
-  return pool[0] || null
+  // No reliable gender match — return null so the caller can show a notice
+  // instead of silently using a voice of the wrong gender.
+  return null
+}
+
+// Helper: is this voice profile a premium (server-rendered) voice?
+export function isPremiumVoice(profile: VoiceProfile | undefined): boolean {
+  return !!profile && profile.engine === 'premium' && !!profile.premiumVoiceId
 }
