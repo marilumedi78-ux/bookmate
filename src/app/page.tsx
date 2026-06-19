@@ -17,6 +17,7 @@ import {
   Clock,
   Play,
   Pause,
+  Square,
   SkipForward,
   SkipBack,
   Sparkles,
@@ -74,7 +75,7 @@ import {
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
-import { VOICE_PROFILES } from '@/lib/voice-profiles'
+import { VOICE_PROFILES, getVoiceProfile, findBrowserVoiceForGender, VOICE_PREVIEW_TEXT } from '@/lib/voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
 import {
   shareContent,
@@ -363,6 +364,106 @@ function darkenHex(hex: string, amount = 0.3): string {
   const g = Math.max(0, Math.round(((num >> 8) & 0xff) * (1 - amount)))
   const b = Math.max(0, Math.round((num & 0xff) * (1 - amount)))
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+// ──────────────────────────────────────────────
+// Voice Preview Card — plays a voice profile sample via Web Speech API
+// ──────────────────────────────────────────────
+function VoicePreviewCard({ profileId }: { profileId: string }) {
+  const profile = getVoiceProfile(profileId)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  // Stop speaking when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  if (!profile) return null
+
+  const handlePlay = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+
+    // If already playing, stop
+    if (isPlaying) {
+      window.speechSynthesis.cancel()
+      setIsPlaying(false)
+      return
+    }
+
+    // Cancel any ongoing speech first
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(VOICE_PREVIEW_TEXT)
+    utterance.rate = profile.rate
+    utterance.pitch = profile.pitch
+    utterance.lang = 'es-ES'
+
+    // Find the best matching browser voice for this profile's gender
+    const voices = window.speechSynthesis.getVoices()
+    let selectedVoice: SpeechSynthesisVoice | null = null
+
+    if (profile.voiceURI) {
+      selectedVoice = voices.find(v => v.voiceURI === profile.voiceURI) || null
+    } else {
+      selectedVoice = findBrowserVoiceForGender(voices, profile.gender)
+    }
+
+    // Fallback to any Spanish voice
+    if (!selectedVoice && voices.length > 0) {
+      selectedVoice = voices.find(v => v.lang?.toLowerCase().startsWith('es')) || null
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice
+      utterance.lang = selectedVoice.lang
+    }
+
+    utterance.onend = () => setIsPlaying(false)
+    utterance.onerror = () => setIsPlaying(false)
+
+    window.speechSynthesis.speak(utterance)
+    setIsPlaying(true)
+  }
+
+  const genderIcon = profile.gender === 'female' ? '♀' : '♂'
+  const genderColor = profile.gender === 'female' ? 'text-rose-500' : 'text-blue-500'
+
+  return (
+    <div className="rounded-lg border bg-card p-2.5 flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xs ${genderColor}`}>{genderIcon}</span>
+          <p className="text-sm font-medium">{profile.name}</p>
+          {profile.badge && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-medium">
+              {profile.badge}
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-muted-foreground truncate">{profile.desc}</p>
+      </div>
+      <button
+        type="button"
+        onClick={handlePlay}
+        className={`size-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+          isPlaying
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-primary/10 hover:bg-primary/20 text-primary'
+        }`}
+        aria-label={isPlaying ? 'Detener' : 'Probar voz'}
+      >
+        {isPlaying ? (
+          <Square className="size-3.5" fill="currentColor" />
+        ) : (
+          <Play className="size-3.5" fill="currentColor" />
+        )}
+      </button>
+    </div>
+  )
 }
 
 // ──────────────────────────────────────────────
@@ -780,7 +881,7 @@ export default function Home() {
         </footer>
       </div>
 
-      {/* ── PREMIUM VOICE PREVIEW DIALOG (Cloudflare Workers AI — Deepgram Aura Spanish) ── */}
+      {/* ── PREMIUM VOICE PREVIEW DIALOG ── */}
       <Dialog open={showVoicePreview} onOpenChange={setShowVoicePreview}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -789,7 +890,7 @@ export default function Home() {
               Voces Premium en Español
             </DialogTitle>
             <DialogDescription>
-              10 voces neuronales nativas en español (Deepgram Aura). Disponibles en los planes Plus y Pro.
+              10 voces premium con tonos y velocidades únicas. Disponibles en los planes Plus y Pro. Toca el botón ▶ para escuchar cada una.
             </DialogDescription>
           </DialogHeader>
 
@@ -809,23 +910,8 @@ export default function Home() {
                 <p className="text-[10px] text-muted-foreground px-1">
                   <span className="text-rose-500">♀</span> Femeninas
                 </p>
-                {[
-                  { id: 'stella', name: 'Stella', desc: 'Cálida narrativa' },
-                  { id: 'luna', name: 'Luna', desc: 'Suave y dulce' },
-                  { id: 'athena', name: 'Atenea', desc: 'Clara y profesional' },
-                ].map((v) => (
-                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{v.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
-                      </div>
-                    </div>
-                    <audio controls className="w-full h-8" preload="none">
-                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
-                      Tu navegador no soporta audio.
-                    </audio>
-                  </div>
+                {VOICE_PROFILES.filter(v => v.plan === 'plus' && v.gender === 'female').map((v) => (
+                  <VoicePreviewCard key={v.id} profileId={v.id} />
                 ))}
               </div>
 
@@ -834,23 +920,8 @@ export default function Home() {
                 <p className="text-[10px] text-muted-foreground px-1">
                   <span className="text-blue-500">♂</span> Masculinas
                 </p>
-                {[
-                  { id: 'arcas', name: 'Arcas', desc: 'Cálida y amigable' },
-                  { id: 'helios', name: 'Helios', desc: 'Clara y enérgica' },
-                  { id: 'eros', name: 'Eros', desc: 'Suave y juvenil' },
-                ].map((v) => (
-                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{v.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
-                      </div>
-                    </div>
-                    <audio controls className="w-full h-8" preload="none">
-                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
-                      Tu navegador no soporta audio.
-                    </audio>
-                  </div>
+                {VOICE_PROFILES.filter(v => v.plan === 'plus' && v.gender === 'male').map((v) => (
+                  <VoicePreviewCard key={v.id} profileId={v.id} />
                 ))}
               </div>
             </div>
@@ -870,22 +941,8 @@ export default function Home() {
                 <p className="text-[10px] text-muted-foreground px-1">
                   <span className="text-rose-500">♀</span> Femeninas
                 </p>
-                {[
-                  { id: 'hera', name: 'Hera', desc: 'Profunda y elegante' },
-                  { id: 'diana', name: 'Diana', desc: 'Joven y energética' },
-                ].map((v) => (
-                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{v.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
-                      </div>
-                    </div>
-                    <audio controls className="w-full h-8" preload="none">
-                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
-                      Tu navegador no soporta audio.
-                    </audio>
-                  </div>
+                {VOICE_PROFILES.filter(v => v.plan === 'pro' && v.gender === 'female').map((v) => (
+                  <VoicePreviewCard key={v.id} profileId={v.id} />
                 ))}
               </div>
 
@@ -894,22 +951,8 @@ export default function Home() {
                 <p className="text-[10px] text-muted-foreground px-1">
                   <span className="text-blue-500">♂</span> Masculinas
                 </p>
-                {[
-                  { id: 'orion', name: 'Orión', desc: 'Grave y envolvente' },
-                  { id: 'zeus', name: 'Zeus', desc: 'Profunda y autoritaria' },
-                ].map((v) => (
-                  <div key={v.id} className="rounded-lg border bg-card p-2.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{v.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{v.desc}</p>
-                      </div>
-                    </div>
-                    <audio controls className="w-full h-8" preload="none">
-                      <source src={`/samples/voice-${v.id}.mp3`} type="audio/mpeg" />
-                      Tu navegador no soporta audio.
-                    </audio>
-                  </div>
+                {VOICE_PROFILES.filter(v => v.plan === 'pro' && v.gender === 'male').map((v) => (
+                  <VoicePreviewCard key={v.id} profileId={v.id} />
                 ))}
               </div>
             </div>
@@ -920,7 +963,7 @@ export default function Home() {
                 ¿Cómo usarlas?
               </p>
               <p>
-                Al subir a plan Plus o Pro, podrás elegir cualquiera de estas voces desde el selector de voz en el lector. Toca ▶ en cualquier voz para escucharla.
+                Al subir a plan Plus o Pro, podrás elegir cualquiera de estas voces desde el selector de voz en el lector. Cada voz tiene un tono y velocidad únicos para que encuentres la perfecta para tu libro.
               </p>
             </div>
           </div>
