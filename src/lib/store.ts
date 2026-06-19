@@ -8,6 +8,8 @@ export type ReadingMode = 'visual' | 'audio' | 'both'
 // ─── localStorage persistence for "seleccionar qué no leer" ───
 const SKIP_RANGES_KEY = 'bookmate:skipRanges'
 const AUTO_SKIP_KEY = 'bookmate:autoSkip'
+// ─── localStorage persistence for font size preference ───
+const FONT_SIZE_KEY = 'bookmate:fontSize'
 
 function loadSkipRanges(): Record<string, SkipRange[]> {
   if (typeof window === 'undefined') return {}
@@ -40,6 +42,33 @@ function persistAutoSkip(enabled: boolean): void {
   try {
     window.localStorage.setItem(AUTO_SKIP_KEY, enabled ? '1' : '0')
   } catch {}
+}
+
+// Font size scale: 'sm' | 'md' | 'lg' | 'xl'  (persisted across sessions)
+export type FontSizeScale = 'sm' | 'md' | 'lg' | 'xl'
+
+function loadFontSize(): FontSizeScale {
+  if (typeof window === 'undefined') return 'md'
+  try {
+    const v = window.localStorage.getItem(FONT_SIZE_KEY)
+    if (v === 'sm' || v === 'md' || v === 'lg' || v === 'xl') return v
+  } catch {}
+  return 'md'
+}
+
+function persistFontSize(size: FontSizeScale): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(FONT_SIZE_KEY, size)
+  } catch {}
+}
+
+// Map font size scale to Tailwind text-* classes used in the reader
+export const FONT_SIZE_CLASSES: Record<FontSizeScale, string> = {
+  sm: 'text-sm leading-relaxed',     // 14px
+  md: 'text-base leading-relaxed',   // 16px (default)
+  lg: 'text-lg leading-relaxed',     // 18px
+  xl: 'text-xl leading-relaxed',     // 20px
 }
 
 export interface BookItem {
@@ -152,6 +181,10 @@ interface BookMateState {
   // Dark mode
   isDarkMode: boolean
   setIsDarkMode: (dark: boolean) => void
+
+  // Reader font size (persisted)
+  fontSize: FontSizeScale
+  setFontSize: (size: FontSizeScale) => void
 
   // Loading states
   isLoadingBook: boolean
@@ -279,6 +312,13 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   isDarkMode: false,
   setIsDarkMode: (dark) => set({ isDarkMode: dark }),
 
+  // Reader font size (persisted)
+  fontSize: loadFontSize(),
+  setFontSize: (size) => {
+    persistFontSize(size)
+    set({ fontSize: size })
+  },
+
   // Loading states
   isLoadingBook: false,
   setIsLoadingBook: (loading) => set({ isLoadingBook: loading }),
@@ -299,3 +339,8 @@ export const useBookMateStore = create<BookMateState>((set) => ({
     set((state) => ({ adminTapCount: state.adminTapCount + 1 })),
   resetAdminTap: () => set({ adminTapCount: 0 }),
 }))
+
+// Expose store on window for dev/testing (e.g. Agent Browser verification)
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  ;(window as any).__bookMateStore = useBookMateStore
+}

@@ -22,6 +22,7 @@ import {
   SkipBack,
   Sparkles,
   Volume2,
+  Type,
   CloudRain,
   Coffee,
   Flame,
@@ -73,7 +74,7 @@ import {
   Share2,
 } from 'lucide-react'
 
-import { useBookMateStore, type BookItem, type TabType, type HighlightItem } from '@/lib/store'
+import { useBookMateStore, type BookItem, type TabType, type HighlightItem, FONT_SIZE_CLASSES, type FontSizeScale } from '@/lib/store'
 import { useTTS } from '@/lib/use-tts'
 import { VOICE_PROFILES, getVoiceProfile, findBrowserVoiceForGender, VOICE_PREVIEW_TEXT } from '@/lib/voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
@@ -1736,6 +1737,8 @@ function ReaderTab() {
     setIsLoadingBook,
     userPlan,
     isVip,
+    fontSize,
+    setFontSize,
   } = store
 
   // Plan-based feature access
@@ -2159,11 +2162,83 @@ function ReaderTab() {
     tts.seekTo(newIdx)
   }
 
-  const handleTextSelect = () => {
-    const selection = window.getSelection()
-    if (selection && selection.toString().trim()) {
-      setSelectedText(selection.toString().trim())
+  // Normaliza whitespace: colapsa múltiples espacios/newlines en uno solo.
+  // Esto hace que la búsqueda de texto seleccionado sea robusta aunque el render
+  // añada espacios extra entre spans.
+  function normalizeWS(s: string): string {
+    return s.replace(/\s+/g, ' ').trim()
+  }
+
+  // Busca el texto seleccionado dentro de bookText de forma robusta:
+  // 1. Intenta indexOf exacto (rápido)
+  // 2. Si falla, busca versión normalizada (colapsando whitespace)
+  // Devuelve { start, end } en coordenadas de bookText, o null si no encuentra.
+  function findSelectedRange(text: string): { start: number; end: number } | null {
+    if (!text || !bookText) return null
+
+    // Búsqueda exacta, empezando cerca de la posición actual de lectura
+    const searchFrom = currentCharIndex > 100 ? currentCharIndex - 100 : 0
+    let idx = bookText.indexOf(text, searchFrom)
+    if (idx >= 0) {
+      return { start: idx, end: idx + text.length }
     }
+
+    // Fallback: buscar desde el inicio
+    idx = bookText.indexOf(text)
+    if (idx >= 0) {
+      return { start: idx, end: idx + text.length }
+    }
+
+    // Último recurso: normalizar whitespace tanto del texto como de bookText
+    // y buscar. Reconstruye el rango real mapeando offsets.
+    const normSelected = normalizeWS(text)
+    if (!normSelected) return null
+    const normBook = normalizeWS(bookText)
+    const normIdx = normBook.indexOf(normSelected)
+    if (normIdx < 0) return null
+
+    // Mapear offsets del texto normalizado de vuelta al texto original.
+    // Construimos un mapa: para cada posición en normBook, cuál es la posición original.
+    const normToOrig: number[] = []
+    let origPos = 0
+    let normPos = 0
+    let lastWasSpace = false
+    while (origPos < bookText.length && normPos < normBook.length) {
+      const ch = bookText[origPos]
+      if (/\s/.test(ch)) {
+        if (!lastWasSpace) {
+          // primer espacio de una secuencia → avanza en normBook
+          normToOrig.push(origPos)
+          normPos++
+          lastWasSpace = true
+        }
+        origPos++
+      } else {
+        normToOrig.push(origPos)
+        if (bookText[origPos] !== normBook[normPos]) return null
+        normPos++
+        origPos++
+        lastWasSpace = false
+      }
+    }
+    // Si el rango normalizado cae fuera del mapa, no podemos mapear
+    const startOrig = normToOrig[normIdx]
+    const endNormIdx = normIdx + normSelected.length - 1
+    const endOrig = normToOrig[endNormIdx]
+    if (startOrig === undefined || endOrig === undefined) return null
+    return { start: startOrig, end: endOrig + 1 }
+  }
+
+  const handleTextSelect = () => {
+    // Pequeño delay para que la selección del navegador esté confirmada,
+    // especialmente importante en móvil donde touchend se dispara antes de
+    // que la selección visual termine de calcularse.
+    setTimeout(() => {
+      const selection = window.getSelection()
+      if (selection && selection.toString().trim()) {
+        setSelectedText(selection.toString().trim())
+      }
+    }, 50)
   }
 
   const handleHighlight = async () => {
@@ -2175,8 +2250,9 @@ function ReaderTab() {
       return
     }
 
-    const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
-    const actualStart = charStart >= 0 ? charStart : 0
+    const range = findSelectedRange(selectedText)
+    const actualStart = range ? range.start : 0
+    const actualEnd = range ? range.end : selectedText.length
 
     try {
       const res = await fetch('/api/highlights', {
@@ -2187,7 +2263,7 @@ function ReaderTab() {
           text: selectedText,
           color: 'yellow',
           charStart: actualStart,
-          charEnd: actualStart + selectedText.length,
+          charEnd: actualEnd,
         }),
       })
       if (res.ok) {
@@ -2209,22 +2285,28 @@ function ReaderTab() {
         note: '',
         color: 'yellow',
         charStart: actualStart,
-        charEnd: actualStart + selectedText.length,
+        charEnd: actualEnd,
       })
     }
     setSelectedText('')
+    try { window.getSelection()?.removeAllRanges() } catch {}
   }
 
   // Mark the currently-selected text as "no leer" — TTS will skip this range
   const handleSkipSelection = () => {
     if (!selectedText || !currentBook) return
 
-    const charStart = bookText.indexOf(selectedText, currentCharIndex > 100 ? currentCharIndex - 100 : 0)
-    const actualStart = charStart >= 0 ? charStart : 0
+    const range = findSelectedRange(selectedText)
+    if (!range) {
+      // No se pudo localizar el texto en el contenido — salir sin error
+      setSelectedText('')
+      try { window.getSelection()?.removeAllRanges() } catch {}
+      return
+    }
 
     addSkipRange(currentBook.id, {
-      start: actualStart,
-      end: actualStart + selectedText.length,
+      start: range.start,
+      end: range.end,
     })
     setSelectedText('')
     try { window.getSelection()?.removeAllRanges() } catch {}
@@ -2410,6 +2492,48 @@ function ReaderTab() {
       </DropdownMenuContent>
     </DropdownMenu>
   )
+
+  // Reusable font size dropdown — used in both reading-mode control bars
+  const renderFontSizeControl = () => {
+    const sizes: { value: FontSizeScale; label: string; preview: string }[] = [
+      { value: 'sm', label: 'Pequeña', preview: 'A' },
+      { value: 'md', label: 'Mediana', preview: 'A' },
+      { value: 'lg', label: 'Grande', preview: 'A' },
+      { value: 'xl', label: 'Extra grande', preview: 'A' },
+    ]
+    const sizeClass = { sm: 'text-xs', md: 'text-sm', lg: 'text-base', xl: 'text-lg' }
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`size-8 ${fontSize !== 'md' ? 'text-primary' : ''}`}
+            aria-label="Tamaño de letra"
+          >
+            <Type className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel>Tamaño de letra</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {sizes.map((s) => (
+            <DropdownMenuItem
+              key={s.value}
+              onClick={() => setFontSize(s.value)}
+              className={fontSize === s.value ? 'bg-primary/10' : ''}
+            >
+              <span className={`${sizeClass[s.value]} font-bold mr-2 w-5 text-center`}>
+                {s.preview}
+              </span>
+              <span className="flex-1 text-sm">{s.label}</span>
+              {fontSize === s.value && <Check className="size-3.5 ml-auto shrink-0" />}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   const readingModeIcon = readingMode === 'visual' ? Eye : readingMode === 'audio' ? Ear : Layers
   const ReadingModeIcon = readingModeIcon
@@ -2643,7 +2767,7 @@ function ReaderTab() {
           </div>
         ) : (
           <div
-            className={`text-base leading-relaxed max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
+            className={`${FONT_SIZE_CLASSES[fontSize]} max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
             onMouseUp={handleTextSelect}
             onTouchEnd={handleTextSelect}
           >
@@ -2794,6 +2918,7 @@ function ReaderTab() {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {renderFontSizeControl()}
                 {renderSkipControl()}
               </div>
             </div>
@@ -3149,6 +3274,7 @@ function ReaderTab() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {renderFontSizeControl()}
             {renderSkipControl()}
 
             <Button

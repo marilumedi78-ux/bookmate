@@ -10,6 +10,7 @@ import {
   type VoiceProfile,
 } from './voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, type SkipRange } from './skip-utils'
+import { useWakeLock } from './use-wake-lock'
 
 // Split text into sentences for TTS playback
 function splitIntoSentences(text: string): { text: string; start: number; end: number }[] {
@@ -775,6 +776,13 @@ export function useTTS() {
       setIsPlaying(false)
     }
   }, [bookText, speechSupported, setIsPlaying, stopPremium])
+
+  // ─── Wake Lock: keep screen on while TTS is actively playing ───
+  // This is what allows the app to keep reading when the phone screen turns off.
+  // Activated only when ttsStatus === 'playing' (not when paused/idle/error).
+  const isActivelyPlaying = ttsStatus === 'playing'
+  const isPaused = ttsStatus === 'paused'
+  useWakeLock(isActivelyPlaying, isPaused)
 
   // Memoize return object to prevent unnecessary re-renders
   return useMemo(() => ({
