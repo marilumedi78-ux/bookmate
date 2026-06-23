@@ -205,16 +205,44 @@ export const DEFAULT_VOICE_PROFILE_ID = 'free-female'
 export const VOICE_PREVIEW_TEXT = 'Hola, soy tu voz de lectura. Así es como sonaré cuando lea tus libros favoritos.'
 
 // Find the best matching browser voice for a profile's gender.
-// BUG FIX (previous version): when no gender-specific voice was found, it fell back
-// to `pool[0]` which on many devices is a FEMALE voice — so selecting "Hombre" still
-// sounded female. Now we explicitly return null when no matching gender voice exists,
-// letting the caller handle the fallback (e.g. show a notice) instead of silently
-// using the wrong gender.
+//
+// MOBILE BEHAVIOR (the key issue we solve here):
+// Most Android devices only ship with ONE Spanish voice ("Google español"),
+// which is female. iOS ships "Mónica"/"Paulina" (also female). So when a user
+// picks a male voice profile on mobile, there is literally no male voice
+// installed — we have NO way to play a male voice.
+//
+// Our strategy:
+//   1. Try to find a real gendered voice by name (works on desktop).
+//   2. If none exists, fall back to ANY Spanish voice and let the caller
+//      compensate by adjusting pitch (caller drops pitch dramatically for
+//      male profiles so a female voice sounds deeper / more masculine).
+//   3. Return { voice, isFallback } so the caller knows whether to apply
+//      pitch compensation. This avoids the previous silent bug where every
+//      male profile sounded female on mobile.
+export interface VoiceMatchResult {
+  voice: SpeechSynthesisVoice | null
+  isFallback: boolean   // true = we couldn't find a real gendered voice
+  availableGenders: ('female' | 'male')[]  // what the device actually has
+}
+
 export function findBrowserVoiceForGender(
   voices: SpeechSynthesisVoice[],
   gender: 'female' | 'male'
 ): SpeechSynthesisVoice | null {
-  if (!voices || voices.length === 0) return null
+  const result = findBrowserVoiceForGenderDetailed(voices, gender)
+  return result.voice
+}
+
+// Detailed version — returns whether this is a real match or a fallback.
+// Use this from use-tts.ts so we can apply pitch compensation on mobile.
+export function findBrowserVoiceForGenderDetailed(
+  voices: SpeechSynthesisVoice[],
+  gender: 'female' | 'male'
+): VoiceMatchResult {
+  if (!voices || voices.length === 0) {
+    return { voice: null, isFallback: false, availableGenders: [] }
+  }
 
   const spanishVoices = voices.filter(v => v.lang?.toLowerCase().startsWith('es'))
   const pool = spanishVoices.length > 0 ? spanishVoices : voices
@@ -233,28 +261,76 @@ export function findBrowserVoiceForGender(
     'masculino', 'javier', 'raúl', 'raul', 'hombre español',
   ]
 
+  // Detect what genders are actually available on this device
+  const hasFemale = pool.some(v => femaleNames.some(p => v.name.toLowerCase().includes(p)))
+  const hasMale = pool.some(v => maleNames.some(p => v.name.toLowerCase().includes(p)))
+  const availableGenders: ('female' | 'male')[] = []
+  if (hasFemale) availableGenders.push('female')
+  if (hasMale) availableGenders.push('male')
+
+  // Try exact gender match by name
   const names = gender === 'female' ? femaleNames : maleNames
   const match = pool.find(v => {
     const n = v.name.toLowerCase()
     return names.some(pattern => n.includes(pattern))
   })
+  if (match) {
+    return { voice: match, isFallback: false, availableGenders }
+  }
 
-  if (match) return match
-
-  // Prefer a local Spanish voice of the correct gender over a remote one.
-  // (Local voices often have gender cues in their names.)
+  // Prefer a local Spanish voice whose name doesn't strongly suggest the opposite gender
   const localSpanish = pool.find(v => v.localService && v.lang?.toLowerCase().startsWith('es'))
   if (localSpanish) {
-    // Only use it if its name doesn't strongly suggest the opposite gender
     const n = localSpanish.name.toLowerCase()
     const oppositeNames = gender === 'female' ? maleNames : femaleNames
     const stronglyOpposite = oppositeNames.some(p => n.includes(p))
-    if (!stronglyOpposite) return localSpanish
+    if (!stronglyOpposite) {
+      // Name is gender-neutral (e.g. "Google español") — accept it as fallback.
+      return { voice: localSpanish, isFallback: true, availableGenders }
+    }
   }
 
-  // No reliable gender match — return null so the caller can show a notice
-  // instead of silently using a voice of the wrong gender.
-  return null
+  // Last resort: any Spanish voice at all (this is the mobile scenario where
+  // only one female voice exists and the user wants male). The caller MUST
+  // apply pitch compensation to make it sound more masculine.
+  const anySpanish = pool.find(v => v.lang?.toLowerCase().startsWith('es')) || pool[0]
+  return { voice: anySpanish || null, isFallback: true, availableGenders }
+}
+
+// Returns the pitch compensation needed when a male profile must use a
+// female voice (mobile scenario). Drops the pitch dramatically so the
+// female voice sounds deeper and more masculine. Not perfect, but
+// distinguishable from the female voices.
+export function compensatePitchForFallback(
+  profile: VoiceProfile,
+  isFallback: boolean
+): number {
+  if (!isFallback) return profile.pitch
+
+  // Male profile using female voice → push pitch very low (0.6-0.8 range)
+  if (profile.gender === 'male') {
+    // Combine profile's intended pitch with a deep drop.
+    // e.g. Zeus (0.65) → 0.55, Arcas (0.95) → 0.7, Helios (1.1) → 0.78
+    return Math.max(0.5, Math.min(0.85, profile.pitch * 0.75))
+  }
+
+  // Female profile using male voice (rare) → push pitch up
+  if (profile.gender === 'female' && isFallback) {
+    return Math.max(1.0, Math.min(1.6, profile.pitch * 1.2))
+  }
+
+  return profile.pitch
+}
+
+// Returns the rate compensation for fallback scenarios. When we drop pitch
+// a lot, we should slow down slightly so it doesn't sound robotic.
+export function compensateRateForFallback(
+  profile: VoiceProfile,
+  isFallback: boolean
+): number {
+  if (!isFallback) return profile.rate
+  // Slight slowdown for fallback voices to sound more natural
+  return Math.max(0.7, profile.rate * 0.95)
 }
 
 // Helper: is this voice profile a premium (server-rendered) voice?

@@ -5,6 +5,9 @@ import { useBookMateStore } from './store'
 import {
   getVoiceProfile,
   findBrowserVoiceForGender,
+  findBrowserVoiceForGenderDetailed,
+  compensatePitchForFallback,
+  compensateRateForFallback,
   isPremiumVoice,
   VOICE_PREVIEW_TEXT,
   type VoiceProfile,
@@ -402,13 +405,17 @@ export function useTTS() {
       // Find the best matching browser voice for this profile's gender
       const voices = safeGetVoices()
       let selectedVoice: SpeechSynthesisVoice | null = null
+      let isFallback = false
 
       if (profile?.voiceURI) {
         // Profile specifies a specific voice URI
         selectedVoice = voices.find(v => v.voiceURI === profile.voiceURI) || null
       } else if (profile) {
-        // Profile wants best voice for its gender
-        selectedVoice = findBrowserVoiceForGender(voices, profile.gender)
+        // Profile wants best voice for its gender — use the detailed matcher
+        // so we know whether to apply pitch compensation on mobile.
+        const matchResult = findBrowserVoiceForGenderDetailed(voices, profile.gender)
+        selectedVoice = matchResult.voice
+        isFallback = matchResult.isFallback
       }
 
       // Fallback to best Spanish voice if nothing matched
@@ -417,6 +424,17 @@ export function useTTS() {
         if (!selectedVoice) {
           selectedVoice = voices.find(v => v.lang.startsWith('es')) || null
         }
+        isFallback = true
+      }
+
+      // Apply pitch/rate compensation for mobile fallback scenario.
+      // When a male profile has to use a female voice (the common mobile case),
+      // drop the pitch dramatically so the user hears something distinguishable
+      // from the female voices.
+      if (profile && isFallback) {
+        utterance.pitch = compensatePitchForFallback(profile, true)
+        const compensatedRate = compensateRateForFallback(profile, true)
+        utterance.rate = Math.min(2.0, Math.max(0.5, playbackSpeedRef.current * compensatedRate))
       }
 
       if (selectedVoice) {
@@ -535,15 +553,26 @@ export function useTTS() {
 
       const voices = safeGetVoices()
       let selectedVoice: SpeechSynthesisVoice | null = null
+      let isFallback = false
 
       if (profile.voiceURI) {
         selectedVoice = voices.find(v => v.voiceURI === profile.voiceURI) || null
       } else {
-        selectedVoice = findBrowserVoiceForGender(voices, profile.gender)
+        const matchResult = findBrowserVoiceForGenderDetailed(voices, profile.gender)
+        selectedVoice = matchResult.voice
+        isFallback = matchResult.isFallback
       }
 
       if (!selectedVoice && voices.length > 0) {
         selectedVoice = voices.find(v => v.lang.startsWith('es')) || voices[0]
+        isFallback = true
+      }
+
+      // Apply the same pitch/rate compensation used during real playback
+      // so the preview accurately reflects what the user will hear.
+      if (isFallback) {
+        utterance.pitch = compensatePitchForFallback(profile, true)
+        utterance.rate = compensateRateForFallback(profile, true)
       }
 
       if (selectedVoice) {

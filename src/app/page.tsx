@@ -78,6 +78,7 @@ import { useBookMateStore, type BookItem, type TabType, type HighlightItem, FONT
 import { useTTS } from '@/lib/use-tts'
 import { VOICE_PROFILES, getVoiceProfile, findBrowserVoiceForGender, VOICE_PREVIEW_TEXT } from '@/lib/voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
+import { useToast } from '@/hooks/use-toast'
 import {
   shareContent,
   buildHighlightShareText,
@@ -1016,6 +1017,8 @@ function LibraryTab() {
   const [progressFilter, setProgressFilter] = useState<'all' | 'reading' | 'unread' | 'finished'>('all')
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'progress'>('recent')
   const [wordOfDay, setWordOfDay] = useState<{ word: string; type: string; meaning: string; example: string } | null>(null)
+  // Modal de upgrade desde LibraryTab (cuando se alcanza el límite de libros en plan Free)
+  const [libraryUpgradeModal, setLibraryUpgradeModal] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch Word of the Day (free for everyone, no auth required)
@@ -1195,7 +1198,7 @@ function LibraryTab() {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}))
           if (errorData.code === 'PLAN_LIMIT') {
-            setShowUpgradeModal('books')
+            setLibraryUpgradeModal('books')
             throw new Error(errorData.error || 'Límite de libros alcanzado')
           }
           throw new Error(errorData.error || `Error del servidor (${res.status})`)
@@ -1597,6 +1600,9 @@ function LibraryTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Upgrade modal for plan-limit reached during upload */}
+      <LibraryUpgradeModal open={libraryUpgradeModal} onOpenChange={setLibraryUpgradeModal} />
     </div>
   )
 }
@@ -1694,6 +1700,40 @@ function BookCard({
 }
 
 // ──────────────────────────────────────────────
+// LIBRARY UPGRADE MODAL — shown when free user hits book limit
+// ──────────────────────────────────────────────
+function LibraryUpgradeModal({ open, onOpenChange }: { open: string | null; onOpenChange: (v: string | null) => void }) {
+  if (!open) return null
+  return (
+    <Dialog open={!!open} onOpenChange={(v) => onOpenChange(v ? open : null)}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Lock className="size-5 text-primary" />
+            Has alcanzado el límite del plan Gratis
+          </DialogTitle>
+          <DialogDescription>
+            Con el plan Plus puedes subir hasta 20 libros. Con Pro, libros ilimitados.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-2 mt-2">
+          <Button
+            onClick={() => {
+              onOpenChange(null)
+              const pricingTab = document.querySelector('[data-tab="pricing"]') as HTMLButtonElement | null
+              if (pricingTab) pricingTab.click()
+            }}
+          >
+            Ver planes
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(null)}>Cerrar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ──────────────────────────────────────────────
 // READER TAB
 // ──────────────────────────────────────────────
 function ReaderTab() {
@@ -1740,6 +1780,9 @@ function ReaderTab() {
     fontSize,
     setFontSize,
   } = store
+
+  // Toast for visible feedback on actions like "No leer", subrayados, etc.
+  const { toast } = useToast()
 
   // Plan-based feature access
   const plan = isVip ? 'pro' : userPlan
@@ -2269,6 +2312,10 @@ function ReaderTab() {
       if (res.ok) {
         const data = await res.json()
         addHighlight(data.highlight)
+        toast({
+          title: 'Subrayado guardado ✓',
+          description: `"${selectedText.slice(0, 50)}${selectedText.length > 50 ? '…' : ''}"`,
+        })
       } else if (res.status === 403) {
         // Plan limit reached
         const data = await res.json()
@@ -2287,6 +2334,10 @@ function ReaderTab() {
         charStart: actualStart,
         charEnd: actualEnd,
       })
+      toast({
+        title: 'Subrayado guardado (local) ✓',
+        description: 'Se guardó localmente — se sincronizará cuando haya conexión.',
+      })
     }
     setSelectedText('')
     try { window.getSelection()?.removeAllRanges() } catch {}
@@ -2298,7 +2349,13 @@ function ReaderTab() {
 
     const range = findSelectedRange(selectedText)
     if (!range) {
-      // No se pudo localizar el texto en el contenido — salir sin error
+      // No se pudo localizar el texto en el contenido — avisar al usuario
+      // en lugar de fallar silenciosamente (causa común del bug "no obedece").
+      toast({
+        title: 'No se pudo marcar "No leer"',
+        description: 'El texto seleccionado no se encontró en el libro. Intenta seleccionar menos texto o desde otra posición.',
+        variant: 'destructive',
+      })
       setSelectedText('')
       try { window.getSelection()?.removeAllRanges() } catch {}
       return
@@ -2308,6 +2365,13 @@ function ReaderTab() {
       start: range.start,
       end: range.end,
     })
+
+    // Feedback visible para que el usuario sepa que sí se guardó.
+    toast({
+      title: 'Marcado como "No leer" ✓',
+      description: `Se omitirá al escuchar: "${selectedText.slice(0, 60)}${selectedText.length > 60 ? '…' : ''}"`,
+    })
+
     setSelectedText('')
     try { window.getSelection()?.removeAllRanges() } catch {}
   }
@@ -4571,7 +4635,8 @@ function PricingTab() {
       period: '',
       features: [
         'Hasta 3 libros',
-        '2 voces básicas (masc. y fem.)',
+        '2 voces (mujer y hombre)',
+        'Lectura en vivo con pantalla encendida',
         'Sonidos ambientales',
         '5 subrayados por libro',
         'Racha de lectura diaria',
@@ -4588,13 +4653,13 @@ function PricingTab() {
       popular: true,
       features: [
         'Hasta 20 libros',
-        '6 voces premium neuronales (español nativo)',
+        '6 voces con personajes distintos',
         'Probar voces antes de elegir',
         'Subrayados ilimitados',
         '10 Explica/mes',
         'Temporizador de sueño',
         'Velocidades 0.5x a 2x',
-        'Sonidos ambientales premium',
+        'Sonidos ambientales',
         'Metas de lectura',
         'Palabra del día',
       ],
@@ -4607,13 +4672,13 @@ function PricingTab() {
       annualMonthly: '$10.83/mes',
       features: [
         'Libros ilimitados',
-        '10 voces premium neuronales (todas)',
+        '10 voces con personajes distintos',
+        'Descarga audiolibro en MP3 (escucha con pantalla apagada)',
+        '30 horas/mes de descarga de audio',
         'Explica ilimitado + en voz alta',
         'Resumen IA del libro (3 ideas + 5 citas)',
         'Gráfico de emociones por capítulo',
-        'OCR escáner (1 libro/mes)',
         'Filtrar qué se lee',
-        '"Tu Año en Libros" anticipado',
         'Soporte prioritario',
       ],
     },
