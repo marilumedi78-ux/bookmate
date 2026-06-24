@@ -94,6 +94,7 @@ export async function GET(req: NextRequest) {
       if (!columnNames.includes('iaHoursUsed')) missingColumns.push({ name: 'iaHoursUsed', def: 'ALTER TABLE "User" ADD COLUMN "iaHoursUsed" DOUBLE PRECISION NOT NULL DEFAULT 0' })
       if (!columnNames.includes('explicaUsed')) missingColumns.push({ name: 'explicaUsed', def: 'ALTER TABLE "User" ADD COLUMN "explicaUsed" INTEGER NOT NULL DEFAULT 0' })
       if (!columnNames.includes('ocrUsed')) missingColumns.push({ name: 'ocrUsed', def: 'ALTER TABLE "User" ADD COLUMN "ocrUsed" INTEGER NOT NULL DEFAULT 0' })
+      if (!columnNames.includes('audiobookHoursUsed')) missingColumns.push({ name: 'audiobookHoursUsed', def: 'ALTER TABLE "User" ADD COLUMN "audiobookHoursUsed" DOUBLE PRECISION NOT NULL DEFAULT 0' })
       if (!columnNames.includes('usageMonth')) missingColumns.push({ name: 'usageMonth', def: 'ALTER TABLE "User" ADD COLUMN "usageMonth" TEXT' })
       if (!columnNames.includes('dailyGoalMin')) missingColumns.push({ name: 'dailyGoalMin', def: 'ALTER TABLE "User" ADD COLUMN "dailyGoalMin" INTEGER NOT NULL DEFAULT 20' })
       if (!columnNames.includes('weeklyGoalDays')) missingColumns.push({ name: 'weeklyGoalDays', def: 'ALTER TABLE "User" ADD COLUMN "weeklyGoalDays" INTEGER NOT NULL DEFAULT 5' })
@@ -302,6 +303,34 @@ export async function GET(req: NextRequest) {
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `
+    }
+
+    // ─── audiobooks table (for MP3 downloads) ───
+    const audiobooksExist = await sql`
+      SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = 'audiobooks'
+    `
+    if (Number(audiobooksExist[0]?.count) === 0) {
+      await sql`
+        CREATE TABLE "audiobooks" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+          "userId" TEXT NOT NULL,
+          "bookId" TEXT NOT NULL,
+          "voiceId" TEXT NOT NULL,
+          "contentHash" TEXT NOT NULL,
+          "storageKey" TEXT NOT NULL,
+          "durationSec" INTEGER NOT NULL DEFAULT 0,
+          "sizeBytes" INTEGER NOT NULL DEFAULT 0,
+          "status" TEXT NOT NULL DEFAULT 'pending',
+          "errorMessage" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "audiobooks_bookId_voiceId_key" UNIQUE ("bookId", "voiceId")
+        )
+      `
+      await sql`CREATE INDEX "audiobooks_contentHash_idx" ON "audiobooks"("contentHash")`
+      await sql`CREATE INDEX "audiobooks_userId_idx" ON "audiobooks"("userId")`
+      await sql`ALTER TABLE "audiobooks" ADD CONSTRAINT "audiobooks_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+      await sql`ALTER TABLE "audiobooks" ADD CONSTRAINT "audiobooks_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
     }
 
     // Verify the User table now has all expected columns

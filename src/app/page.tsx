@@ -79,6 +79,8 @@ import { useTTS } from '@/lib/use-tts'
 import { VOICE_PROFILES, getVoiceProfile, findBrowserVoiceForGender, VOICE_PREVIEW_TEXT } from '@/lib/voice-profiles'
 import { isSentenceSkipped, isNoiseSentence, previewRange } from '@/lib/skip-utils'
 import { useToast } from '@/hooks/use-toast'
+import { useAudiobooks, useAudiobookPlayer } from '@/lib/use-audiobooks'
+import { PREMIUM_VOICES, getPremiumVoiceById } from '@/lib/premium-voices'
 import {
   shareContent,
   buildHighlightShareText,
@@ -1712,6 +1714,21 @@ function BookCard({
 }
 
 // ──────────────────────────────────────────────
+// Helper: format seconds as MM:SS or HH:MM:SS
+// Used by the audiobook player UI.
+// ──────────────────────────────────────────────
+function formatTime(seconds: number): string {
+  if (!seconds || !isFinite(seconds)) return '0:00'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+// ──────────────────────────────────────────────
 // LIBRARY UPGRADE MODAL — shown when free user hits book limit
 // ──────────────────────────────────────────────
 function LibraryUpgradeModal({ open, onOpenChange }: { open: string | null; onOpenChange: (v: string | null) => void }) {
@@ -1796,6 +1813,15 @@ function ReaderTab() {
   // Toast for visible feedback on actions like "No leer", subrayados, etc.
   const { toast } = useToast()
 
+  // Audiobook MP3 download system (Pro plan only).
+  // This is the feature that works with the screen off — the user downloads
+  // a full MP3 of the book with a premium voice, then plays it via HTML5 Audio
+  // + Media Session API (lock-screen controls).
+  const audiobooks = useAudiobooks()
+  const audiobookPlayer = useAudiobookPlayer()
+  const [showAudiobookSheet, setShowAudiobookSheet] = useState(false)
+  const [selectedPremiumVoiceId, setSelectedPremiumVoiceId] = useState<string>('lucia-es-ES')
+
   // Plan-based feature access
   const plan = isVip ? 'pro' : userPlan
   const canUseAmbientSounds = true // Ambient sounds are free for everyone
@@ -1803,6 +1829,7 @@ function ReaderTab() {
   const canUseAllSpeeds = plan !== 'free'
   const maxHighlightsPerBook = plan === 'free' ? 5 : Infinity
   const maxExplicaPerMonth = plan === 'free' ? 5 : plan === 'plus' ? 10 : Infinity
+  const canDownloadAudiobooks = plan === 'pro'  // MP3 download is Pro-only
 
   // State declarations - MUST be before effects that use them
   const [explicaResult, setExplicaResult] = useState<string | null>(null)
@@ -3353,6 +3380,30 @@ function ReaderTab() {
             {renderFontSizeControl()}
             {renderSkipControl()}
 
+            {/* ─── Descargar audiolibro MP3 (Pro only) ─── */}
+            {canDownloadAudiobooks && currentBook && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`size-8 ${audiobooks.getForBookAndVoice(currentBook.id) ? 'text-primary' : ''}`}
+                onClick={() => setShowAudiobookSheet(true)}
+                aria-label="Descargar audiolibro MP3"
+              >
+                <Download className="size-4" />
+              </Button>
+            )}
+            {!canDownloadAudiobooks && currentBook && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => setShowUpgradeModal('audiobook')}
+                aria-label="Descargar audiolibro MP3 (Pro)"
+              >
+                <Lock className="size-4" />
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
@@ -3440,6 +3491,178 @@ function ReaderTab() {
                 <p className="text-sm text-foreground whitespace-pre-wrap">{explicaResult}</p>
               </motion.div>
             )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ─── Audiobook MP3 Sheet (Pro feature) ─── */}
+      <Sheet open={showAudiobookSheet} onOpenChange={setShowAudiobookSheet}>
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Download className="size-5 text-primary" />
+              Audiolibro MP3
+            </SheetTitle>
+            <SheetDescription>
+              Descarga este libro en audio para escuchar con la pantalla apagada
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {/* Voice selector */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Voz premium</p>
+              <div className="grid grid-cols-1 gap-2">
+                {PREMIUM_VOICES.map((voice) => (
+                  <button
+                    key={voice.id}
+                    onClick={() => setSelectedPremiumVoiceId(voice.id)}
+                    className={`text-left p-3 rounded-lg border-2 transition-all ${
+                      selectedPremiumVoiceId === voice.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{voice.name}</span>
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {voice.accentLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{voice.desc}</p>
+                      </div>
+                      {selectedPremiumVoiceId === voice.id && (
+                        <Check className="size-4 text-primary shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Existing audiobook (if any) */}
+            {currentBook && audiobooks.getForBookAndVoice(currentBook.id, selectedPremiumVoiceId) && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="size-4 text-primary" />
+                  <p className="text-sm font-medium text-foreground">Audiolibro listo</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Ya tienes este libro generado con {getPremiumVoiceById(selectedPremiumVoiceId)?.name}.
+                  Puedes reproducirlo cuantas veces quieras.
+                </p>
+                {/* Player */}
+                <div className="bg-background rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      className="size-10 rounded-full"
+                      onClick={() => {
+                        const ab = audiobooks.getForBookAndVoice(currentBook.id, selectedPremiumVoiceId)
+                        if (ab) {
+                          audiobookPlayer.playAudiobook(
+                            ab,
+                            currentBook.title,
+                            getPremiumVoiceById(selectedPremiumVoiceId)?.name
+                          )
+                        }
+                      }}
+                    >
+                      {audiobookPlayer.isPlaying ? (
+                        <Pause className="size-4" />
+                      ) : (
+                        <Play className="size-4 ml-0.5" />
+                      )}
+                    </Button>
+                    <div className="flex-1">
+                      <Slider
+                        value={[audiobookPlayer.duration > 0 ? (audiobookPlayer.currentTime / audiobookPlayer.duration) * 100 : 0]}
+                        max={100}
+                        step={0.1}
+                        onValueChange={(v) => {
+                          if (audiobookPlayer.duration > 0) {
+                            audiobookPlayer.seek((v[0] / 100) * audiobookPlayer.duration)
+                          }
+                        }}
+                      />
+                      <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                        <span>{formatTime(audiobookPlayer.currentTime)}</span>
+                        <span>{formatTime(audiobookPlayer.duration)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    💡 Cierra la app, apaga la pantalla — el audio sigue sonando
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Generate button (if no audiobook yet) */}
+            {currentBook && !audiobooks.getForBookAndVoice(currentBook.id, selectedPremiumVoiceId) && (
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-1">Generar audiolibro</p>
+                  <p className="text-xs text-muted-foreground">
+                    Se generará un MP3 completo del libro con la voz de {getPremiumVoiceById(selectedPremiumVoiceId)?.name}.
+                    Para un libro de ~300 páginas esto puede tardar 2-5 minutos.
+                  </p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={async () => {
+                    if (!currentBook) return
+                    const result = await audiobooks.generateAudiobook({
+                      bookId: currentBook.id,
+                      voiceId: selectedPremiumVoiceId,
+                    })
+                    if (result.success) {
+                      toast({
+                        title: 'Audiolibro generado ✓',
+                        description: 'Ya puedes escucharlo con la pantalla apagada.',
+                      })
+                    } else {
+                      toast({
+                        title: 'Error',
+                        description: result.error || 'No se pudo generar el audiolibro.',
+                        variant: 'destructive',
+                      })
+                    }
+                  }}
+                  disabled={audiobooks.isGenerating}
+                >
+                  {audiobooks.isGenerating ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="size-4 mr-2" />
+                      Generar audiolibro MP3
+                    </>
+                  )}
+                </Button>
+                {audiobooks.generateProgress && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    {audiobooks.generateProgress}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Info card */}
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg p-3">
+              <p className="text-xs text-blue-900 dark:text-blue-100">
+                <strong>¿Cómo funciona?</strong><br />
+                1. Elige una voz premium<br />
+                2. Toca "Generar audiolibro"<br />
+                3. Espera 2-5 minutos (taller para libros largos)<br />
+                4. Reproduce el audio — funciona con pantalla apagada igual que Spotify
+              </p>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -3672,6 +3895,7 @@ function ReaderTab() {
                     {showUpgradeModal === 'books' && 'Límite de libros alcanzado'}
                     {showUpgradeModal === 'summary' && 'Resumen IA'}
                     {showUpgradeModal === 'emotions' && 'Gráfico de emociones'}
+                    {showUpgradeModal === 'audiobook' && 'Descargar audiolibro MP3'}
                   </p>
                 </div>
               </div>
@@ -3685,6 +3909,7 @@ function ReaderTab() {
                 {showUpgradeModal === 'books' && 'Con Plus puedes tener hasta 20 libros, y con Pro son ilimitados. Sube todos los libros que quieras.'}
                 {showUpgradeModal === 'summary' && 'Con Pro obtienes un resumen IA de cada libro: 3 ideas clave, 5 citas memorables y para quién es el libro.'}
                 {showUpgradeModal === 'emotions' && 'Con Pro visualiza el arco emocional del libro: un gráfico que muestra cómo cambian las emociones capítulo a capítulo.'}
+                {showUpgradeModal === 'audiobook' && 'Con Pro puedes descargar tus libros como audiolibros MP3 con voces premium de Google. Escúchalos con la pantalla apagada, como Spotify — mientras trabajas, manejas o haces ejercicio.'}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -4686,6 +4911,7 @@ function PricingTab() {
         'Libros ilimitados',
         '10 voces con personajes distintos',
         'Descarga audiolibro en MP3 (escucha con pantalla apagada)',
+        '3 voces premium de Google para MP3',
         '30 horas/mes de descarga de audio',
         'Explica ilimitado + en voz alta',
         'Resumen IA del libro (3 ideas + 5 citas)',

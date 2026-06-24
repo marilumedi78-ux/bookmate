@@ -14,6 +14,9 @@ export const PLAN_LIMITS = {
     canUseIAVoice: false,
     canUseAISummary: false,
     canUseOCR: false,
+    // Audiobook MP3 downloads (the Pro-only feature that works with screen off)
+    canDownloadAudiobooks: false,
+    maxAudiobookHoursPerMonth: 0,
   },
   plus: {
     maxBooks: 20,
@@ -26,6 +29,8 @@ export const PLAN_LIMITS = {
     canUseIAVoice: true,
     canUseAISummary: false,
     canUseOCR: false,
+    canDownloadAudiobooks: false,
+    maxAudiobookHoursPerMonth: 0,
   },
   pro: {
     maxBooks: Infinity,
@@ -38,6 +43,8 @@ export const PLAN_LIMITS = {
     canUseIAVoice: true,
     canUseAISummary: true,
     canUseOCR: true,
+    canDownloadAudiobooks: true,
+    maxAudiobookHoursPerMonth: 30,
   },
 } as const
 
@@ -48,15 +55,16 @@ export async function ensureMonthlyUsageReset(userId: string): Promise<{
   iaHoursUsed: number
   explicaUsed: number
   ocrUsed: number
+  audiobookHoursUsed: number
 }> {
   const currentMonth = format(new Date(), 'yyyy-MM')
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { usageMonth: true, iaHoursUsed: true, explicaUsed: true, ocrUsed: true },
+    select: { usageMonth: true, iaHoursUsed: true, explicaUsed: true, ocrUsed: true, audiobookHoursUsed: true },
   })
 
   if (!user) {
-    return { iaHoursUsed: 0, explicaUsed: 0, ocrUsed: 0 }
+    return { iaHoursUsed: 0, explicaUsed: 0, ocrUsed: 0, audiobookHoursUsed: 0 }
   }
 
   // If the usage month doesn't match current month, reset counters
@@ -68,15 +76,17 @@ export async function ensureMonthlyUsageReset(userId: string): Promise<{
         iaHoursUsed: 0,
         explicaUsed: 0,
         ocrUsed: 0,
+        audiobookHoursUsed: 0,
       },
     })
-    return { iaHoursUsed: 0, explicaUsed: 0, ocrUsed: 0 }
+    return { iaHoursUsed: 0, explicaUsed: 0, ocrUsed: 0, audiobookHoursUsed: 0 }
   }
 
   return {
     iaHoursUsed: user.iaHoursUsed,
     explicaUsed: user.explicaUsed,
     ocrUsed: user.ocrUsed,
+    audiobookHoursUsed: user.audiobookHoursUsed,
   }
 }
 
