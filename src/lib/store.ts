@@ -71,6 +71,28 @@ export const FONT_SIZE_CLASSES: Record<FontSizeScale, string> = {
   xl: 'text-xl leading-relaxed',     // 20px
 }
 
+// ─── Dyslexia-friendly font option (persisted) ───
+// When enabled, the reader uses OpenDyslexic instead of the default sans-serif.
+// OpenDyslexic is a typeface designed to help people with dyslexia read more
+// easily — it has heavier bottom weights and unique letter shapes that reduce
+// the chance of letter confusion (b/d, p/q, etc).
+const USE_DYSLEXIC_FONT_KEY = 'bookmate:useDyslexicFont'
+
+function loadUseDyslexicFont(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(USE_DYSLEXIC_FONT_KEY) === '1'
+  } catch {}
+  return false
+}
+
+function persistUseDyslexicFont(enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(USE_DYSLEXIC_FONT_KEY, enabled ? '1' : '0')
+  } catch {}
+}
+
 export interface BookItem {
   id: string
   title: string
@@ -185,6 +207,10 @@ interface BookMateState {
   // Reader font size (persisted)
   fontSize: FontSizeScale
   setFontSize: (size: FontSizeScale) => void
+
+  // Dyslexia-friendly font toggle (persisted)
+  useDyslexicFont: boolean
+  setUseDyslexicFont: (enabled: boolean) => void
 
   // Loading states
   isLoadingBook: boolean
@@ -317,6 +343,13 @@ export const useBookMateStore = create<BookMateState>((set) => ({
   setFontSize: (size) => {
     persistFontSize(size)
     set({ fontSize: size })
+  },
+
+  // Dyslexia-friendly font toggle (persisted)
+  useDyslexicFont: loadUseDyslexicFont(),
+  setUseDyslexicFont: (enabled) => {
+    persistUseDyslexicFont(enabled)
+    set({ useDyslexicFont: enabled })
   },
 
   // Loading states

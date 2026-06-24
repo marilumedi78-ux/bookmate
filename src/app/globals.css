@@ -3,6 +3,41 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── OpenDyslexic font face ─── */
+/* Used when the user enables the "Fuente OpenDyslexic" option in the reader.
+   This font is specifically designed to help people with dyslexia read more
+   easily. Source: https://github.com/antijingoist/opendyslexic (SIL Open Font License) */
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('/fonts/OpenDyslexic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('/fonts/OpenDyslexic-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* When applied to the reader container, switches ALL text to OpenDyslexic */
+.font-dyslexic,
+.font-dyslexic * {
+  font-family: 'OpenDyslexic', var(--font-geist-sans), sans-serif !important;
+  letter-spacing: 0.02em;  /* slightly more spacing helps dyslexic readers */
+  word-spacing: 0.05em;
+  line-height: 1.7 !important;  /* more vertical space between lines */
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

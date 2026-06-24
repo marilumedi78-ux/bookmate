@@ -75,6 +75,7 @@ import {
   Gift,
   Award,
   UserPlus,
+  Accessibility,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem, FONT_SIZE_CLASSES, type FontSizeScale } from '@/lib/store'
@@ -1854,6 +1855,8 @@ function ReaderTab() {
     isVip,
     fontSize,
     setFontSize,
+    useDyslexicFont,
+    setUseDyslexicFont,
   } = store
 
   // Toast for visible feedback on actions like "No leer", subrayados, etc.
@@ -2642,7 +2645,8 @@ function ReaderTab() {
     </DropdownMenu>
   )
 
-  // Reusable font size dropdown — used in both reading-mode control bars
+  // Reusable font size dropdown — used in both reading-mode control bars.
+  // Also includes the OpenDyslexic font toggle (for users with dyslexia).
   const renderFontSizeControl = () => {
     const sizes: { value: FontSizeScale; label: string; preview: string }[] = [
       { value: 'sm', label: 'Pequeña', preview: 'A' },
@@ -2657,13 +2661,13 @@ function ReaderTab() {
           <Button
             variant="ghost"
             size="icon"
-            className={`size-8 ${fontSize !== 'md' ? 'text-primary' : ''}`}
+            className={`size-8 ${fontSize !== 'md' || useDyslexicFont ? 'text-primary' : ''}`}
             aria-label="Tamaño de letra"
           >
             <Type className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Tamaño de letra</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {sizes.map((s) => (
@@ -2679,6 +2683,31 @@ function ReaderTab() {
               {fontSize === s.value && <Check className="size-3.5 ml-auto shrink-0" />}
             </DropdownMenuItem>
           ))}
+
+          {/* ─── OpenDyslexic font toggle ─── */}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="flex items-center gap-1.5">
+            <Accessibility className="size-3.5" />
+            Accesibilidad
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => setUseDyslexicFont(!useDyslexicFont)}
+            className={useDyslexicFont ? 'bg-primary/10' : ''}
+          >
+            <div className="flex-1">
+              <div className="text-sm font-medium">Fuente OpenDyslexic</div>
+              <div className="text-[11px] text-muted-foreground">
+                Tipografía especial para dislexia
+              </div>
+            </div>
+            {useDyslexicFont && <Check className="size-3.5 ml-2 shrink-0 text-primary" />}
+          </DropdownMenuItem>
+          {!useDyslexicFont && (
+            <div className="px-2 py-1 text-[10px] text-muted-foreground">
+              Diseñada para facilitar la lectura a personas con dislexia.
+              Las letras tienen formas únicas que reducen la confusión b/d, p/q.
+            </div>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     )
@@ -2916,7 +2945,7 @@ function ReaderTab() {
           </div>
         ) : (
           <div
-            className={`${FONT_SIZE_CLASSES[fontSize]} max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
+            className={`${FONT_SIZE_CLASSES[fontSize]} ${useDyslexicFont ? 'font-dyslexic' : ''} max-w-2xl mx-auto select-text ${readingMode === 'visual' ? 'pb-6' : 'pb-40'}`}
             onMouseUp={handleTextSelect}
             onTouchEnd={handleTextSelect}
           >
@@ -4964,6 +4993,7 @@ function PricingTab() {
         'Racha de lectura diaria',
         '5 Explica/mes',
         'Velocidad 1x',
+        'Fuente OpenDyslexic (accesibilidad)',
       ],
     },
     {
@@ -4984,6 +5014,7 @@ function PricingTab() {
         'Sonidos ambientales',
         'Metas de lectura',
         'Palabra del día',
+        'Fuente OpenDyslexic (accesibilidad)',
       ],
     },
     {
@@ -5002,6 +5033,7 @@ function PricingTab() {
         'Resumen IA del libro (3 ideas + 5 citas)',
         'Gráfico de emociones por capítulo',
         'Filtrar qué se lee',
+        'Fuente OpenDyslexic (accesibilidad)',
         'Soporte prioritario',
       ],
     },
