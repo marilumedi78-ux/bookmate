@@ -45,9 +45,32 @@ export async function POST(request: NextRequest) {
 
     // ─── Duplicate detection (by hash) ───
     // Only check when force !== true (user already confirmed they want both)
-    if (fileHash && force !== true) {
+    //
+    // ⚠️ GUARD: only detect duplicates when the hash looks valid.
+    // Older versions of the client had a bug where the hash was computed from
+    // a detached (emptied) ArrayBuffer after PDF.js consumed it — every book
+    // got the same "empty buffer" hash. Those old books have a corrupt hash
+    // stored, and we must NOT mark new uploads as duplicates of them.
+    //
+    // A valid SHA-256 hash is 64 hex chars and is NOT the well-known hash of
+    // an empty buffer (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855).
+    const EMPTY_BUFFER_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    const isValidHash = (
+      typeof fileHash === 'string' &&
+      fileHash.length === 64 &&
+      /^[0-9a-f]+$/i.test(fileHash) &&
+      fileHash.toLowerCase() !== EMPTY_BUFFER_SHA256
+    )
+
+    if (isValidHash && force !== true) {
+      // Only consider existing books whose hash is ALSO valid (to avoid
+      // matching against old corrupted records).
       const existing = await db.book.findFirst({
-        where: { userId, fileHash },
+        where: {
+          userId,
+          fileHash,
+          NOT: { fileHash: EMPTY_BUFFER_SHA256 },
+        },
         select: {
           id: true,
           title: true,

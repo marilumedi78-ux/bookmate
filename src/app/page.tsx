@@ -1154,8 +1154,22 @@ function LibraryTab() {
 
         const pdfjsLib = await loadPdfJs()
         const arrayBuffer = await file.arrayBuffer()
+
+        // ⚠️ CRITICAL FIX: PDF.js DETACHES (empties) the ArrayBuffer when you pass
+        // it to getDocument(). If we compute the hash AFTER, we'd hash an empty
+        // buffer → every book would get the same hash → every new upload would
+        // be falsely detected as a duplicate of the first one.
+        //
+        // Solution: compute the hash from the File object directly (before
+        // PDF.js gets to touch the buffer). Using `file` instead of `arrayBuffer`
+        // is safer because file.arrayBuffer() returns a fresh buffer every time.
+        const hashBuffer = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+        // Now it's safe to let PDF.js consume the buffer.
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
-        
+
         // Extract text from all pages
         const textParts: string[] = []
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -1175,11 +1189,6 @@ function LibraryTab() {
         const info = metadata?.info || {}
         const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
         const author = info?.Author || 'Desconocido'
-
-        // Compute file hash
-        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-        const hashArray = Array.from(new Uint8Array(hashBuffer))
-        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 
         // Send extracted data to API
         const res = await fetch('/api/books/upload', {
@@ -1261,9 +1270,16 @@ function LibraryTab() {
       const pdfjsLib = (window as any).pdfjsLib
       if (!pdfjsLib) throw new Error('PDF.js no disponible')
 
+      // ⚠️ Same fix as handleFileSelect: compute hash BEFORE PDF.js detaches
+      // the ArrayBuffer. Using file.arrayBuffer() here returns a fresh buffer
+      // that PDF.js won't have touched yet.
+      const hashBuffer = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
       const arrayBuffer = await file.arrayBuffer()
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
-      
+
       const textParts: string[] = []
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i)
@@ -1277,10 +1293,6 @@ function LibraryTab() {
       const info = metadata?.info || {}
       const title = info?.Title || file.name.replace(/\.pdf$/i, '') || 'Sin título'
       const author = info?.Author || 'Desconocido'
-
-      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 
       const res = await fetch('/api/books/upload', {
         method: 'POST',
