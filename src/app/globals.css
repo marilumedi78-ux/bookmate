@@ -220,3 +220,107 @@ html {
     oklch(0.3484 0.0977 220) 100%
   );
 }
+
+/* ─── App loading splash screen ─── */
+/* Shown immediately on first paint before React hydrates. Hidden once the
+   app's main content renders. Provides a branded experience instead of a
+   blank white screen. */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--background, #FDFBF7);
+  transition: opacity 0.3s ease-out;
+}
+
+.app-splash__logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #2A9D8F 0%, #21867A 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  animation: splash-breathe 2s ease-in-out infinite;
+}
+
+.app-splash__logo svg {
+  width: 44px;
+  height: 44px;
+  color: white;
+}
+
+.app-splash__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--foreground, #1a1a1a);
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+}
+
+.app-splash__tagline {
+  font-size: 13px;
+  color: var(--muted-foreground, #666);
+  text-align: center;
+  padding: 0 32px;
+}
+
+.app-splash__spinner {
+  margin-top: 28px;
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid rgba(42, 157, 143, 0.2);
+  border-top-color: #2A9D8F;
+  border-radius: 50%;
+  animation: splash-spin 0.8s linear infinite;
+}
+
+.app-splash--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes splash-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Safe area insets for notch phones (used by install prompt + bottom bars) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Smooth scrolling for reader */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Better text selection on mobile */
+::selection {
+  background: rgba(42, 157, 143, 0.2);
+}
+
+/* Prevent iOS zoom on input focus (must be >=16px) */
+input, textarea, select {
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  input, textarea, select {
+    font-size: inherit;
+  }
+}
+
