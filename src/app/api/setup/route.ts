@@ -96,6 +96,12 @@ export async function GET(req: NextRequest) {
       if (!columnNames.includes('ocrUsed')) missingColumns.push({ name: 'ocrUsed', def: 'ALTER TABLE "User" ADD COLUMN "ocrUsed" INTEGER NOT NULL DEFAULT 0' })
       if (!columnNames.includes('audiobookHoursUsed')) missingColumns.push({ name: 'audiobookHoursUsed', def: 'ALTER TABLE "User" ADD COLUMN "audiobookHoursUsed" DOUBLE PRECISION NOT NULL DEFAULT 0' })
       if (!columnNames.includes('usageMonth')) missingColumns.push({ name: 'usageMonth', def: 'ALTER TABLE "User" ADD COLUMN "usageMonth" TEXT' })
+      // Referral system columns
+      if (!columnNames.includes('referralCode')) missingColumns.push({ name: 'referralCode', def: 'ALTER TABLE "User" ADD COLUMN "referralCode" TEXT' })
+      if (!columnNames.includes('referredById')) missingColumns.push({ name: 'referredById', def: 'ALTER TABLE "User" ADD COLUMN "referredById" TEXT' })
+      if (!columnNames.includes('referralCredits')) missingColumns.push({ name: 'referralCredits', def: 'ALTER TABLE "User" ADD COLUMN "referralCredits" INTEGER NOT NULL DEFAULT 0' })
+      if (!columnNames.includes('referralCount')) missingColumns.push({ name: 'referralCount', def: 'ALTER TABLE "User" ADD COLUMN "referralCount" INTEGER NOT NULL DEFAULT 0' })
+      if (!columnNames.includes('referralPaidCount')) missingColumns.push({ name: 'referralPaidCount', def: 'ALTER TABLE "User" ADD COLUMN "referralPaidCount" INTEGER NOT NULL DEFAULT 0' })
       if (!columnNames.includes('dailyGoalMin')) missingColumns.push({ name: 'dailyGoalMin', def: 'ALTER TABLE "User" ADD COLUMN "dailyGoalMin" INTEGER NOT NULL DEFAULT 20' })
       if (!columnNames.includes('weeklyGoalDays')) missingColumns.push({ name: 'weeklyGoalDays', def: 'ALTER TABLE "User" ADD COLUMN "weeklyGoalDays" INTEGER NOT NULL DEFAULT 5' })
 
@@ -109,6 +115,13 @@ export async function GET(req: NextRequest) {
             console.error(`Failed to add column User.${col.name}:`, e?.message)
           }
         }
+      }
+
+      // Add unique index on referralCode (idempotent — fails silently if exists)
+      try {
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS "User_referralCode_key" ON "User"("referralCode")`
+      } catch (e: any) {
+        // Ignore — might already exist
       }
     } else {
       // User table doesn't exist yet - create it with all columns
@@ -134,6 +147,11 @@ export async function GET(req: NextRequest) {
           "usageMonth" TEXT,
           "dailyGoalMin" INTEGER NOT NULL DEFAULT 20,
           "weeklyGoalDays" INTEGER NOT NULL DEFAULT 5,
+          "referralCode" TEXT,
+          "referredById" TEXT,
+          "referralCredits" INTEGER NOT NULL DEFAULT 0,
+          "referralCount" INTEGER NOT NULL DEFAULT 0,
+          "referralPaidCount" INTEGER NOT NULL DEFAULT 0,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )

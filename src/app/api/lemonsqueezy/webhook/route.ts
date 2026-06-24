@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getLemonSqueezyClient, isLemonSqueezyConfigured, getPlanFromVariantId } from '@/lib/lemonsqueezy'
+import { rewardReferralOnPaid } from '@/lib/referrals'
 import crypto from 'crypto'
 
 /**
@@ -98,6 +99,21 @@ export async function POST(req: NextRequest) {
           },
         })
         console.log(`Lemon Squeezy: subscription_created — user ${userId} → plan ${plan}`)
+
+        // ─── Referral reward ───
+        // When a user subscribes for the FIRST time (subscription_created),
+        // reward both them and their referrer with 1 month of Pro credit.
+        // (We only do this on _created, not _updated, to avoid rewarding the
+        // same referral multiple times on plan changes.)
+        try {
+          const rewarded = await rewardReferralOnPaid(userId)
+          if (rewarded) {
+            console.log(`Referral reward: user ${userId} + their referrer both earned 1 month Pro credit`)
+          }
+        } catch (err) {
+          // Non-fatal: don't fail the webhook if the referral reward fails
+          console.warn('Referral reward failed (non-fatal):', err)
+        }
         break
       }
 

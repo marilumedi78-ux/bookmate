@@ -72,6 +72,9 @@ import {
   Filter,
   Library,
   Share2,
+  Gift,
+  Award,
+  UserPlus,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem, FONT_SIZE_CLASSES, type FontSizeScale } from '@/lib/store'
@@ -150,9 +153,24 @@ function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [referralCode, setReferralCode] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Capture referral code from URL (?ref=CODE) on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) {
+      setReferralCode(ref.toUpperCase())
+      // Clean URL so the code doesn't leak when sharing the page
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      } catch {}
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,7 +194,12 @@ function LoginScreen() {
         const regRes = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+            name: name.trim() || undefined,
+            referralCode: referralCode.trim() || undefined,
+          }),
         })
         let regData: any
         try {
@@ -247,6 +270,29 @@ function LoginScreen() {
                       className="pl-9"
                     />
                   </div>
+                </div>
+              )}
+
+              {isRegister && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Gift className="size-3.5 text-primary" />
+                    Código de referido <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Ej: MARILU-7K3X"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    className="font-mono uppercase tracking-wider"
+                    autoComplete="off"
+                  />
+                  {referralCode && (
+                    <p className="text-[11px] text-primary flex items-center gap-1">
+                      <Gift className="size-3" />
+                      ¡Tu amigo también ganará 1 mes Pro gratis!
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -4711,6 +4757,45 @@ function PricingTab() {
   const [addingVip, setAddingVip] = useState(false)
   const [currentEmail, setCurrentEmail] = useState('')
 
+  // ─── Referral system state ───
+  const [referralCode, setReferralCode] = useState<string>('')
+  const [referralLink, setReferralLink] = useState<string>('')
+  const [referralShareText, setReferralShareText] = useState<string>('')
+  const [referralStats, setReferralStats] = useState<{ signedUp: number; paid: number; credits: number }>({ signedUp: 0, paid: 0, credits: 0 })
+  const [referralLoading, setReferralLoading] = useState(true)
+  const [referralCopied, setReferralCopied] = useState<'code' | 'link' | null>(null)
+
+  // Fetch referral code + stats on mount
+  useEffect(() => {
+    const loadReferral = async () => {
+      try {
+        const [codeRes, statsRes] = await Promise.all([
+          fetch('/api/referrals/code'),
+          fetch('/api/referrals/stats'),
+        ])
+        if (codeRes.ok) {
+          const codeData = await codeRes.json()
+          setReferralCode(codeData.code || '')
+          setReferralLink(codeData.link || '')
+          setReferralShareText(codeData.shareText || '')
+        }
+        if (statsRes.ok) {
+          const statsData = await statsRes.json()
+          setReferralStats({
+            signedUp: statsData.signedUp || 0,
+            paid: statsData.paid || 0,
+            credits: statsData.credits || 0,
+          })
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setReferralLoading(false)
+      }
+    }
+    loadReferral()
+  }, [])
+
   // Load current user plan from session
   useEffect(() => {
     if (session?.user) {
@@ -5109,6 +5194,146 @@ function PricingTab() {
           </motion.div>
         ))}
       </div>
+
+      {/* ── INVITA Y GANA (Referral section) ── */}
+      <Card className="mt-8 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Gift className="size-5 text-primary" />
+            Invita y gana 1 mes Pro gratis
+          </CardTitle>
+          <CardDescription>
+            Por cada amigo que se suscriba a Plus o Pro, ambos reciben 1 mes de Pro gratis.
+            Sin límite — invita a 10 amigos, gana 10 meses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {referralLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-3 rounded-lg bg-background">
+                  <div className="text-2xl font-bold text-foreground">{referralStats.signedUp}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Registrados</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-background">
+                  <div className="text-2xl font-bold text-primary">{referralStats.paid}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Pagaron</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-background">
+                  <div className="text-2xl font-bold text-primary">{referralStats.credits}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Meses Pro</div>
+                </div>
+              </div>
+
+              {/* Referral code */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                  Tu código
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-background border-2 border-dashed border-primary/30 font-mono font-bold text-foreground text-center tracking-wider">
+                    {referralCode}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(referralCode)
+                        setReferralCopied('code')
+                        setTimeout(() => setReferralCopied(null), 2000)
+                      } catch {}
+                    }}
+                    aria-label="Copiar código"
+                  >
+                    {referralCopied === 'code' ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Share link */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                  Tu link de invitación
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-background border text-foreground text-sm truncate">
+                    {referralLink}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(referralLink)
+                        setReferralCopied('link')
+                        setTimeout(() => setReferralCopied(null), 2000)
+                      } catch {}
+                    }}
+                    aria-label="Copiar link"
+                  >
+                    {referralCopied === 'link' ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Share buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: 'Escucha Libros — Audiolibros de tus PDFs',
+                        text: referralShareText,
+                        url: referralLink,
+                      }).catch(() => {})
+                    } else {
+                      // Fallback: copy full share text
+                      navigator.clipboard?.writeText(referralShareText).catch(() => {})
+                    }
+                  }}
+                >
+                  <Share2 className="size-4 mr-2" />
+                  Compartir
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    // WhatsApp share
+                    const waText = encodeURIComponent(referralShareText)
+                    window.open(`https://wa.me/?text=${waText}`, '_blank')
+                  }}
+                >
+                  <UserPlus className="size-4 mr-2" />
+                  WhatsApp
+                </Button>
+              </div>
+
+              {/* How it works */}
+              <div className="bg-background/50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Award className="size-3.5 text-primary" />
+                  Cómo funciona
+                </p>
+                <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Comparte tu código o link con un amigo</li>
+                  <li>Tu amigo se registra con tu código</li>
+                  <li>Cuando se suscriba a Plus o Pro, <strong className="text-foreground">ambos</strong> reciben 1 mes de Pro gratis</li>
+                  <li>Sin límite — invita a cuantos amigos quieras</li>
+                </ol>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── APP VERSION (secret admin entry point) ── */}
       <div className="mt-8 text-center">

@@ -31,6 +31,17 @@ model User {
   // Reading goals
   dailyGoalMin  Int      @default(20) // daily reading goal in minutes
   weeklyGoalDays Int     @default(5)  // weekly goal: how many days to read
+
+  // ─── Referral system ───
+  // Each user gets a unique referral code they can share with friends.
+  // When a friend signs up using the code and later upgrades to a paid plan
+  // (Plus or Pro), BOTH users get 1 month of Pro free.
+  referralCode        String?  @unique  // e.g. "MARILU" or "MARILU-7K3X"
+  referredById        String?  // the user who referred this one (User.id)
+  referralCredits     Int      @default(0)  // months of Pro earned via referrals
+  referralCount       Int      @default(0)  // how many people signed up with this user's code
+  referralPaidCount   Int      @default(0)  // how many of those converted to paid (Pro/Plus)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   books         Book[]
@@ -38,6 +49,8 @@ model User {
   highlights    Highlight[]
   readingLogs   ReadingLog[]
   audiobooks    Audiobook[]
+  referredBy    User?    @relation("Referrals", fields: [referredById], references: [id])
+  referralsMade User[]   @relation("Referrals")
 }
 
 model Book {

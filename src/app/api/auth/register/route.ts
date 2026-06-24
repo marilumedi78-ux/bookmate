@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { db } from '@/lib/db'
+import { applyReferralCode } from '@/lib/referrals'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name } = await req.json()
+    const { email, password, name, referralCode } = await req.json()
 
     // Validate input
     if (!email || !password) {
@@ -61,6 +62,18 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // ─── Apply referral code (if provided) ───
+    // This is best-effort: if the code is invalid or fails, the user is still
+    // created successfully. We don't want a referral bug to block signup.
+    let referralApplied = false
+    if (referralCode && typeof referralCode === 'string') {
+      try {
+        referralApplied = await applyReferralCode(user.id, referralCode)
+      } catch (refError) {
+        console.warn('Referral code application failed (non-fatal):', refError)
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       user: {
@@ -70,6 +83,7 @@ export async function POST(req: NextRequest) {
         plan: user.plan,
         isVip: user.isVip,
       },
+      referralApplied,
     })
   } catch (error) {
     console.error('Registration error:', error)
