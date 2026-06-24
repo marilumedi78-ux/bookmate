@@ -351,6 +351,23 @@ export async function GET(req: NextRequest) {
       await sql`ALTER TABLE "audiobooks" ADD CONSTRAINT "audiobooks_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE`
     }
 
+    // ─── waitlist_emails table (for landing page) ───
+    const waitlistExist = await sql`
+      SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = 'waitlist_emails'
+    `
+    if (Number(waitlistExist[0]?.count) === 0) {
+      await sql`
+        CREATE TABLE "waitlist_emails" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+          "email" TEXT NOT NULL UNIQUE,
+          "name" TEXT,
+          "source" TEXT NOT NULL DEFAULT 'landing',
+          "referralCode" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `
+    }
+
     // Verify the User table now has all expected columns
     const finalColumns = await sql`
       SELECT column_name FROM information_schema.columns WHERE table_name = 'User' ORDER BY ordinal_position

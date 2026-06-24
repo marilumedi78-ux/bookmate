@@ -158,6 +158,19 @@ model VipEmail {
   @@map("vip_emails")
 }
 
+// Waitlist — emails captured from the landing page before launch.
+// Used to notify users when the app is ready and to measure interest.
+model WaitlistEmail {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  source      String   @default("landing")  // landing, referral, social, etc.
+  referralCode String? // if they came from a referral link
+  createdAt   DateTime @default(now())
+
+  @@map("waitlist_emails")
+}
+
 // Generated audiobook MP3 — created when a Pro user downloads a book as MP3
 // with a premium voice. The MP3 bytes live in Vercel Blob / S3 (keyed by
 // contentHash); this row tracks ownership + metadata + cuota usage.

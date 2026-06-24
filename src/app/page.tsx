@@ -76,6 +76,7 @@ import {
   Award,
   UserPlus,
   Accessibility,
+  Highlighter,
 } from 'lucide-react'
 
 import { useBookMateStore, type BookItem, type TabType, type HighlightItem, FONT_SIZE_CLASSES, type FontSizeScale } from '@/lib/store'
@@ -145,6 +146,325 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
+
+// ──────────────────────────────────────────────
+// LANDING PAGE — pública, para captar emails antes del lanzamiento
+// ──────────────────────────────────────────────
+function LandingPage({ onStart }: { onStart: () => void }) {
+  const [email, setEmail] = useState('')
+  const [subscribed, setSubscribed] = useState(false)
+  const [subscribing, setSubscribing] = useState(false)
+  const [error, setError] = useState('')
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null)
+
+  // Capture referral code from URL (?ref=CODE) — pass to backend so we can
+  // track which referrals converted to waitlist signups
+  const [refCode] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    const params = new URLSearchParams(window.location.search)
+    return params.get('ref') || ''
+  })
+
+  // Show social proof (subscriber count)
+  useEffect(() => {
+    fetch('/api/waitlist/subscribe')
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.count === 'number' && data.count > 0) {
+          setSubscriberCount(data.count)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Ingresa un email válido')
+      return
+    }
+    setSubscribing(true)
+    try {
+      const res = await fetch('/api/waitlist/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), referralCode: refCode || undefined }),
+      })
+      if (res.ok) {
+        setSubscribed(true)
+        // Bump the displayed counter immediately
+        setSubscriberCount(c => (c ?? 0) + 1)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || 'Error al suscribir. Intenta de nuevo.')
+      }
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setSubscribing(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* ─── HERO ─── */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background pointer-events-none" />
+        <div className="relative max-w-md mx-auto px-5 pt-12 pb-8">
+          {/* Logo */}
+          <div className="flex items-center justify-center mb-6">
+            <div className="size-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+              <Headphones className="size-8 text-primary-foreground" />
+            </div>
+          </div>
+
+          <h1 className="text-3xl font-bold text-center text-foreground leading-tight">
+            Convierte tus PDFs en <span className="text-primary">audiolibros</span>
+          </h1>
+          <p className="text-center text-muted-foreground mt-3 leading-relaxed">
+            Escucha cualquier PDF con voces en español mientras trabajas, manejas o haces ejercicio.
+            Con la pantalla apagada, como Spotify.
+          </p>
+
+          {/* Waitlist form */}
+          <div className="mt-6 bg-card border border-border rounded-2xl p-5 shadow-sm">
+            {subscribed ? (
+              <div className="text-center py-4">
+                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                  <Check className="size-6 text-primary" />
+                </div>
+                <p className="font-semibold text-foreground">¡Estás en la lista!</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Te avisaremos en cuanto lancemos. Mientras tanto, puedes probar la app gratis.
+                </p>
+                <Button onClick={onStart} className="w-full mt-4">
+                  Probar la app ahora →
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubscribe} className="space-y-3">
+                <label className="text-sm font-medium text-foreground block">
+                  Únete a la lista de espera
+                </label>
+                <Input
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full"
+                  autoComplete="email"
+                />
+                {error && <p className="text-xs text-destructive">{error}</p>}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={subscribing}
+                >
+                  {subscribing ? (
+                    <><Loader2 className="size-4 mr-2 animate-spin" /> Enviando...</>
+                  ) : (
+                    <>Quiero ser de los primeros →</>
+                  )}
+                </Button>
+                {subscriberCount !== null && subscriberCount > 0 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    🔥 {subscriberCount} persona{subscriberCount !== 1 ? 's' : ''} ya se unieron
+                  </p>
+                )}
+              </form>
+            )}
+          </div>
+
+          {/* Quick stats / trust signals */}
+          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Check className="size-3 text-primary" /> Gratis para empezar
+            </div>
+            <div className="flex items-center gap-1">
+              <Check className="size-3 text-primary" /> Sin tarjeta
+            </div>
+            <div className="flex items-center gap-1">
+              <Check className="size-3 text-primary" /> 3 libros gratis
+            </div>
+          </div>
+
+          {/* Already have account */}
+          <button
+            onClick={onStart}
+            className="block mx-auto mt-6 text-sm text-primary hover:underline"
+          >
+            Ya tengo cuenta →
+          </button>
+        </div>
+      </section>
+
+      {/* ─── FEATURES ─── */}
+      <section className="px-5 py-10 max-w-md mx-auto">
+        <h2 className="text-xl font-bold text-center text-foreground mb-6">
+          Todo lo que necesitas para leer más
+        </h2>
+        <div className="space-y-4">
+          <FeatureCard
+            icon={<Headphones className="size-5" />}
+            title="Voces en español"
+            desc="12 voces distintas — mujer, hombre, y personajes con personalidad única."
+          />
+          <FeatureCard
+            icon={<Download className="size-5" />}
+            title="Descarga en MP3"
+            desc="Con el plan Pro, descarga el audiolibro y escúchalo con la pantalla apagada."
+          />
+          <FeatureCard
+            icon={<Accessibility className="size-5" />}
+            title="Fuente OpenDyslexic"
+            desc="Tipografía especial para personas con dislexia. Accesibilidad real."
+          />
+          <FeatureCard
+            icon={<Sparkles className="size-5" />}
+            title="Resumen IA del libro"
+            desc="3 ideas clave + 5 citas memorables de cada libro, generadas con IA."
+          />
+          <FeatureCard
+            icon={<Highlighter className="size-5" />}
+            title="Subrayados y notas"
+            desc="Marca lo importante mientras escuchas. Todo se sincroniza en la nube."
+          />
+          <FeatureCard
+            icon={<CloudRain className="size-5" />}
+            title="Sonidos ambientales"
+            desc="Lluvia, café, fogata, olas o bosque. Relájate mientras lees."
+          />
+        </div>
+      </section>
+
+      {/* ─── HOW IT WORKS ─── */}
+      <section className="bg-muted/30 py-10 px-5">
+        <div className="max-w-md mx-auto">
+          <h2 className="text-xl font-bold text-center text-foreground mb-6">
+            Así de fácil
+          </h2>
+          <div className="space-y-4">
+            <Step
+              num={1}
+              title="Sube tu PDF"
+              desc="Cualquier PDF funciona — apuntes, libros, manuales, lo que sea."
+            />
+            <Step
+              num={2}
+              title="Elige tu voz"
+              desc="12 voces en español con personalidades distintas."
+            />
+            <Step
+              num={3}
+              title="Escucha donde quieras"
+              desc="Mientras trabajas, en el bus, haciendo ejercicio. Con pantalla apagada."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── TESTIMONIAL / USE CASES ─── */}
+      <section className="px-5 py-10 max-w-md mx-auto">
+        <h2 className="text-xl font-bold text-center text-foreground mb-6">
+          ¿Para quién es Escucha Libros?
+        </h2>
+        <div className="space-y-3">
+          <UseCase
+            emoji="👩‍💼"
+            title="Profesionales ocupados"
+            desc="Convierte tus manuales y apuntes en audio. Escúchalos mientras trabajas."
+          />
+          <UseCase
+            emoji="🎓"
+            title="Estudiantes"
+            desc="Escucha tus apuntes en el bus, el gym o mientras caminas a clase."
+          />
+          <UseCase
+            emoji="👁️"
+            title="Personas con dislexia"
+            desc="Fuente OpenDyslexic + audio = la combinación perfecta para leer sin frustración."
+          />
+          <UseCase
+            emoji="🚗"
+            title="Quienes viajan"
+            desc="Tienes PDFs pero no puedes leerlos mientras manejas. Ahora sí puedes."
+          />
+        </div>
+      </section>
+
+      {/* ─── FINAL CTA ─── */}
+      <section className="bg-gradient-to-br from-primary/10 to-background py-10 px-5">
+        <div className="max-w-md mx-auto text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-3">
+            Empieza gratis hoy
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            3 libros gratis · voces en español · sin tarjeta de crédito
+          </p>
+          <Button onClick={onStart} size="lg" className="w-full">
+            Crear cuenta gratis →
+          </Button>
+          <p className="text-xs text-muted-foreground mt-4">
+            ¿Ya tienes cuenta?{' '}
+            <button onClick={onStart} className="text-primary hover:underline">
+              Iniciar sesión
+            </button>
+          </p>
+        </div>
+      </section>
+
+      {/* ─── FOOTER ─── */}
+      <footer className="border-t border-border py-6 px-5">
+        <div className="max-w-md mx-auto text-center text-xs text-muted-foreground">
+          <p className="font-medium text-foreground mb-1">Escucha Libros</p>
+          <p>Tus PDFs convertidos en audiolibro</p>
+          <p className="mt-2">© {new Date().getFullYear()} · Hecho con ♥ en español</p>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  return (
+    <div className="flex gap-3 p-4 rounded-xl border border-border bg-card">
+      <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{desc}</p>
+      </div>
+    </div>
+  )
+}
+
+function Step({ num, title, desc }: { num: number; title: string; desc: string }) {
+  return (
+    <div className="flex gap-3">
+      <div className="size-8 rounded-full bg-primary text-primary-foreground font-bold flex items-center justify-center shrink-0">
+        {num}
+      </div>
+      <div className="flex-1 pt-1">
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{desc}</p>
+      </div>
+    </div>
+  )
+}
+
+function UseCase({ emoji, title, desc }: { emoji: string; title: string; desc: string }) {
+  return (
+    <div className="flex gap-3 p-3 rounded-xl bg-muted/30">
+      <div className="text-2xl shrink-0">{emoji}</div>
+      <div className="flex-1">
+        <p className="font-medium text-foreground text-sm">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+      </div>
+    </div>
+  )
+}
 
 // ──────────────────────────────────────────────
 // Login / Register Screen
@@ -534,6 +854,9 @@ export default function Home() {
   const { setTheme } = useTheme()
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+  // Landing page state — when user clicks "Start" we show the LoginScreen.
+  // Allows them to subscribe to waitlist first, then sign up.
+  const [showLoginScreen, setShowLoginScreen] = useState(false)
 
   // ── CRITICAL: Load user plan from /api/auth/me on login ──
   // This ensures isVip/userPlan are set globally, not just in Stats/Pricing tabs
@@ -751,7 +1074,12 @@ export default function Home() {
   }
 
   if (!session && !devBypass) {
-    return <LoginScreen />
+    // Landing page (default) → user can subscribe to waitlist or click "Start"
+    // to go straight to the LoginScreen.
+    if (showLoginScreen) {
+      return <LoginScreen />
+    }
+    return <LandingPage onStart={() => setShowLoginScreen(true)} />
   }
 
   return (
