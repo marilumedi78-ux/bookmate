@@ -1113,34 +1113,8 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Update Available Banner */}
-        <AnimatePresence>
-          {updateAvailable && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-3 flex items-center gap-3">
-                <div className="size-9 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-                  <RefreshCw className="size-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">Nueva versión disponible</p>
-                  <p className="text-xs text-muted-foreground">Actualiza para disfrutar las últimas mejoras</p>
-                </div>
-                <Button size="sm" onClick={handleUpdate} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <Download className="size-3.5 mr-1" />
-                  Actualizar
-                </Button>
-                <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={handleDismissUpdate}>
-                  <X className="size-3.5" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Update Available Banner — moved to layout.tsx (UpdateNotifier)
+            so it shows on the landing page too, not just when logged in. */}
 
         {/* ── Premium Voice Preview Banner (Cloudflare Workers AI) ── */}
         <AnimatePresence>
