@@ -5,19 +5,63 @@ import crypto from 'crypto'
 // POST /api/auth/forgot-password
 // Body: { email }
 //
-// Generates a password reset token and:
-//   - If RESEND_API_KEY is set: sends an email with the reset link
-//   - If not set (dev/no email service): returns the reset link directly
-//     in the response so the user can click it manually.
+// Generates a self-contained signed token (no DB write needed — the token
+// itself carries the userId + expiry, signed with NEXTAUTH_SECRET so it
+// can't be tampered with). This avoids the "column doesn't exist" errors
+// that happen when DB migrations haven't been applied yet.
 //
-// Always returns success (even if email doesn't exist) to prevent
-// account enumeration attacks (don't reveal which emails are registered).
+// Flow:
+//   1. Look up user by email (always return success to prevent enumeration)
+//   2. Sign a token containing { userId, expiresAt } with HMAC-SHA256
+//   3. If RESEND_API_KEY is set: email the reset link
+//   4. If not set (dev): return the link directly in the response
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
   || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
+// Use NEXTAUTH_SECRET (always present in production for NextAuth to work)
+// as the signing key for the reset tokens.
+const SIGNING_SECRET = process.env.NEXTAUTH_SECRET || 'fallback-dev-secret-do-not-use-in-prod'
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || 'Escucha Libros <no-reply@resend.dev>'
+
+// Sign a payload with HMAC-SHA256 → returns "base64payload.hexsignature"
+export function signResetToken(userId: string, expiresAt: number): string {
+  const payload = JSON.stringify({ userId, expiresAt })
+  const b64 = Buffer.from(payload).toString('base64url')
+  const sig = crypto.createHmac('sha256', SIGNING_SECRET).update(b64).digest('hex')
+  return `${b64}.${sig}`
+}
+
+// Verify a signed token → returns the payload or null if invalid/expired.
+// Exported so the reset-password route can import it.
+export function verifyResetToken(token: string): { userId: string; expiresAt: number } | null {
+  if (!token || typeof token !== 'string') return null
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+  const [b64, sig] = parts
+
+  // Verify signature — constant-time compare to prevent timing attacks
+  const expectedSig = crypto.createHmac('sha256', SIGNING_SECRET).update(b64).digest('hex')
+  if (sig.length !== expectedSig.length) return null
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+      return null
+    }
+  } catch {
+    return null
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'))
+    if (!payload.userId || typeof payload.expiresAt !== 'number') return null
+    if (payload.expiresAt < Date.now()) return null  // expired
+    return payload
+  } catch {
+    return null
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,22 +88,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Generate a secure random token (32 bytes = 64 hex chars)
-    const plainToken = crypto.randomBytes(32).toString('hex')
-    // Hash the token before storing — never store plain tokens in DB
-    const hashedToken = crypto.createHash('sha256').update(plainToken).digest('hex')
-
-    // Token expires in 1 hour
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
-
-    // Save the hashed token + expiry on the user
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetToken: hashedToken,
-        passwordResetExpires: expiresAt,
-      },
-    })
+    // ─── Generate self-contained signed token (NO DB WRITE) ───
+    // Token expires in 1 hour. The token itself carries userId + expiry,
+    // signed with NEXTAUTH_SECRET so it can't be forged.
+    const expiresAt = Date.now() + 60 * 60 * 1000  // 1 hour from now
+    const plainToken = signResetToken(user.id, expiresAt)
 
     // Build the reset URL
     const resetUrl = `${APP_URL}/reset-password?token=${plainToken}`

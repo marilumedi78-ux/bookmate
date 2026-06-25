@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hash } from 'bcryptjs'
-import crypto from 'crypto'
+import { verifyResetToken } from '../forgot-password/route'
 
 // POST /api/auth/reset-password
 // Body: { token, newPassword }
 //
-// Validates the reset token (hash match + not expired), then updates
-// the user's password and clears the reset token so it can't be reused.
+// Validates the signed token (HMAC-SHA256 signature + not expired),
+// then updates the user's password.
+//
+// This version is STATELESS — no DB columns needed for the token.
+// The token itself contains { userId, expiresAt } signed with
+// NEXTAUTH_SECRET, so we can verify it without touching the DB until
+// the actual password update.
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,21 +31,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Hash the plain token to compare with the stored hash
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
-
-    // Find user by token (must not be expired)
-    const user = await db.user.findFirst({
-      where: {
-        passwordResetToken: hashedToken,
-        passwordResetExpires: { gt: new Date() },
-      },
-      select: { id: true, email: true },
-    })
-
-    if (!user) {
+    // Verify the signed token (signature + expiry check)
+    const payload = verifyResetToken(token)
+    if (!payload) {
       return NextResponse.json(
         { error: 'El enlace de recuperación es inválido o ha expirado. Solicita uno nuevo.' },
+        { status: 400 }
+      )
+    }
+
+    // Make sure the user still exists (they might have been deleted)
+    const user = await db.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true },
+    })
+    if (!user) {
+      return NextResponse.json(
+        { error: 'La cuenta ya no existe.' },
         { status: 400 }
       )
     }
@@ -48,14 +55,10 @@ export async function POST(req: NextRequest) {
     // Hash the new password
     const hashedPassword = await hash(newPassword, 12)
 
-    // Update the password + clear the reset token
+    // Update the password
     await db.user.update({
       where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        passwordResetToken: null,
-        passwordResetExpires: null,
-      },
+      data: { password: hashedPassword },
     })
 
     return NextResponse.json({
