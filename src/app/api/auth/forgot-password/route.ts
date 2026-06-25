@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import crypto from 'crypto'
+import { signResetToken } from '@/lib/auth-tokens'
 
 // POST /api/auth/forgot-password
 // Body: { email }
 //
-// Generates a self-contained signed token (no DB write needed — the token
-// itself carries the userId + expiry, signed with NEXTAUTH_SECRET so it
-// can't be tampered with). This avoids the "column doesn't exist" errors
-// that happen when DB migrations haven't been applied yet.
-//
-// Flow:
+// Stateless flow:
 //   1. Look up user by email (always return success to prevent enumeration)
 //   2. Sign a token containing { userId, expiresAt } with HMAC-SHA256
 //   3. If RESEND_API_KEY is set: email the reset link
@@ -19,53 +14,13 @@ import crypto from 'crypto'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
   || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
-// Use NEXTAUTH_SECRET (always present in production for NextAuth to work)
-// as the signing key for the reset tokens.
-const SIGNING_SECRET = process.env.NEXTAUTH_SECRET || 'fallback-dev-secret-do-not-use-in-prod'
-
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || 'Escucha Libros <no-reply@resend.dev>'
 
-// Sign a payload with HMAC-SHA256 → returns "base64payload.hexsignature"
-export function signResetToken(userId: string, expiresAt: number): string {
-  const payload = JSON.stringify({ userId, expiresAt })
-  const b64 = Buffer.from(payload).toString('base64url')
-  const sig = crypto.createHmac('sha256', SIGNING_SECRET).update(b64).digest('hex')
-  return `${b64}.${sig}`
-}
-
-// Verify a signed token → returns the payload or null if invalid/expired.
-// Exported so the reset-password route can import it.
-export function verifyResetToken(token: string): { userId: string; expiresAt: number } | null {
-  if (!token || typeof token !== 'string') return null
-  const parts = token.split('.')
-  if (parts.length !== 2) return null
-  const [b64, sig] = parts
-
-  // Verify signature — constant-time compare to prevent timing attacks
-  const expectedSig = crypto.createHmac('sha256', SIGNING_SECRET).update(b64).digest('hex')
-  if (sig.length !== expectedSig.length) return null
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
-      return null
-    }
-  } catch {
-    return null
-  }
-
-  try {
-    const payload = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'))
-    if (!payload.userId || typeof payload.expiresAt !== 'number') return null
-    if (payload.expiresAt < Date.now()) return null  // expired
-    return payload
-  } catch {
-    return null
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const { email } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    const email = body?.email
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email requerido' }, { status: 400 })
@@ -75,10 +30,20 @@ export async function POST(req: NextRequest) {
 
     // Always look up the user — but if not found, we still return success
     // (don't reveal which emails exist)
-    const user = await db.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true, name: true, email: true },
-    })
+    let user: { id: string; name: string | null; email: string } | null = null
+    try {
+      user = await db.user.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, name: true, email: true },
+      })
+    } catch (dbErr) {
+      console.error('Forgot password: DB lookup failed:', dbErr)
+      // Even if DB fails, return generic success (don't leak DB errors to user)
+      return NextResponse.json({
+        success: true,
+        message: 'Si el email existe en nuestra base de datos, recibirás un enlace de recuperación.',
+      })
+    }
 
     if (!user) {
       // Don't reveal that the email doesn't exist
@@ -89,8 +54,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ─── Generate self-contained signed token (NO DB WRITE) ───
-    // Token expires in 1 hour. The token itself carries userId + expiry,
-    // signed with NEXTAUTH_SECRET so it can't be forged.
     const expiresAt = Date.now() + 60 * 60 * 1000  // 1 hour from now
     const plainToken = signResetToken(user.id, expiresAt)
 
@@ -102,12 +65,12 @@ export async function POST(req: NextRequest) {
       try {
         await sendResetEmail(user.email, user.name || '', resetUrl)
       } catch (emailErr) {
-        console.error('Failed to send reset email:', emailErr)
+        console.error('Forgot password: email send failed:', emailErr)
         // Fall back to returning the link in the response
         return NextResponse.json({
           success: true,
           message: 'No se pudo enviar el email, pero generamos tu enlace de recuperación. Cópialo y pégalo en tu navegador:',
-          resetUrl,  // only included because email failed
+          resetUrl,
           emailFailed: true,
         })
       }
@@ -127,7 +90,7 @@ export async function POST(req: NextRequest) {
       emailNotConfigured: true,
     })
   } catch (error) {
-    console.error('Forgot password error:', error)
+    console.error('Forgot password: unhandled error:', error)
     return NextResponse.json(
       { error: 'Error al procesar la solicitud. Intenta de nuevo.' },
       { status: 500 }
