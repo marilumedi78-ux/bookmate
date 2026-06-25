@@ -479,6 +479,43 @@ function LoginScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // ─── Forgot password flow ───
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotResult, setForgotResult] = useState<{ type: 'success' | 'info' | 'error'; message: string; resetUrl?: string } | null>(null)
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotResult(null)
+    if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail.trim())) {
+      setForgotResult({ type: 'error', message: 'Ingresa un email válido' })
+      return
+    }
+    setForgotLoading(true)
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setForgotResult({
+          type: 'success',
+          message: data.message,
+          resetUrl: data.resetUrl,  // only present when email not configured
+        })
+      } else {
+        setForgotResult({ type: 'error', message: data.error || 'Error. Intenta de nuevo.' })
+      }
+    } catch {
+      setForgotResult({ type: 'error', message: 'Error de conexión. Intenta de nuevo.' })
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   // Capture referral code from URL (?ref=CODE) on mount
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -672,13 +709,25 @@ function LoginScreen() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="justify-center pb-4">
+          <CardFooter className="justify-center pb-4 flex-col gap-2">
             <button
               onClick={() => { setIsRegister(!isRegister); setError('') }}
               className="text-sm text-primary hover:underline"
             >
               {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
             </button>
+            {!isRegister && (
+              <button
+                onClick={() => {
+                  setShowForgotPassword(true)
+                  setForgotEmail(email)  // pre-fill with whatever they typed
+                  setForgotResult(null)
+                }}
+                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
           </CardFooter>
         </Card>
 
@@ -686,6 +735,105 @@ function LoginScreen() {
           Al registrarte aceptas nuestros términos de servicio
         </p>
       </motion.div>
+
+      {/* ─── Forgot Password Modal ─── */}
+      {showForgotPassword && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setShowForgotPassword(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-background rounded-2xl shadow-2xl max-w-sm w-full p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-foreground text-lg mb-1">Recuperar contraseña</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+            </p>
+
+            {forgotResult ? (
+              <div className={`p-3 rounded-lg text-sm ${
+                forgotResult.type === 'error'
+                  ? 'bg-destructive/10 text-destructive'
+                  : 'bg-primary/10 text-foreground'
+              }`}>
+                <p>{forgotResult.message}</p>
+                {forgotResult.resetUrl && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Enlace de recuperación (cópialo y pégalo en tu navegador):
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={forgotResult.resetUrl}
+                        readOnly
+                        className="flex-1 px-2 py-1.5 text-xs bg-muted rounded border font-mono"
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(forgotResult.resetUrl || '')
+                            .then(() => alert('¡Copiado! Pégalo en tu navegador.'))
+                            .catch(() => {})
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                    <a
+                      href={forgotResult.resetUrl}
+                      className="block text-center text-xs text-primary hover:underline mt-2"
+                    >
+                      O toca aquí para abrirlo →
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-3">
+                <Input
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  autoFocus
+                />
+                <Button type="submit" className="w-full" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <><Loader2 className="size-4 mr-2 animate-spin" /> Enviando...</>
+                  ) : (
+                    'Enviar enlace de recuperación'
+                  )}
+                </Button>
+              </form>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              {forgotResult && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setForgotResult(null)}
+                >
+                  Intentar con otro email
+                </Button>
+              )}
+              <Button
+                variant={forgotResult ? 'default' : 'outline'}
+                className={forgotResult ? '' : 'w-full'}
+                onClick={() => setShowForgotPassword(false)}
+              >
+                {forgotResult ? 'Cerrar' : 'Cancelar'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

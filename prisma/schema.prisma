@@ -12,6 +12,11 @@ model User {
   id            String   @id @default(cuid())
   email         String   @unique
   password      String?  // hashed password for credentials auth
+  // Password reset flow: when user requests a reset, we generate a token,
+  // store its hash here (never store plain tokens), and email them a link
+  // with the plain token. The link expires after 1 hour.
+  passwordResetToken        String?  // sha256 hash of the plain token
+  passwordResetExpires      DateTime?
   name          String?
   avatarUrl     String?
   plan          String   @default("free") // free, plus, pro
