@@ -566,8 +566,8 @@ function LoginScreen() {
           <div className="flex justify-center mb-4">
             <BookMateLogo size={64} />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">BookMate</h1>
-          <p className="text-muted-foreground text-sm mt-1">Tu Compañero de Libros</p>
+          <h1 className="text-2xl font-bold text-foreground">Escucha Libros</h1>
+          <p className="text-muted-foreground text-sm mt-1">Tus PDFs convertidos en audiolibro</p>
         </div>
 
         <Card>
@@ -1099,7 +1099,7 @@ export default function Home() {
               <div className="bg-primary/10 border-b px-4 py-3 flex items-center gap-3">
                 <BookMateLogo size={28} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">Instalar BookMate</p>
+                  <p className="text-sm font-medium text-foreground">Instalar Escucha Libros</p>
                   <p className="text-xs text-muted-foreground">Acceso rápido desde tu pantalla de inicio</p>
                 </div>
                 <Button size="sm" onClick={handleInstall} className="shrink-0">
@@ -1164,7 +1164,7 @@ export default function Home() {
           <div className="flex items-center justify-between px-4 h-14">
             <div className="flex items-center gap-2">
               <BookMateLogo size={32} />
-              <span className="font-bold text-lg text-foreground">BookMate</span>
+              <span className="font-bold text-lg text-foreground">Escucha Libros</span>
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -3800,7 +3800,7 @@ function ReaderTab() {
       <Sheet open={showExplica} onOpenChange={setShowExplica}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>BookMate Explica</SheetTitle>
+            <SheetTitle>Escucha Libros · Explica</SheetTitle>
             <SheetDescription>
               Selecciona una opción para entender mejor el texto
             </SheetDescription>
@@ -5433,7 +5433,7 @@ function PricingTab() {
       {/* ── PRICING SECTION ── */}
       <div className="mb-6">
         <h2 className="text-lg font-bold text-foreground mb-1">Elige tu plan</h2>
-        <p className="text-muted-foreground text-sm">Desbloquea el potencial completo de BookMate</p>
+        <p className="text-muted-foreground text-sm">Desbloquea el potencial completo de Escucha Libros</p>
       </div>
 
       {/* Annual toggle - Segmented Control */}
@@ -5691,7 +5691,7 @@ function PricingTab() {
               Panel de Administración
             </DialogTitle>
             <DialogDescription>
-              Gestiona usuarios VIP y configuraciones de BookMate
+              Gestiona usuarios VIP y configuraciones de Escucha Libros
             </DialogDescription>
           </DialogHeader>
 

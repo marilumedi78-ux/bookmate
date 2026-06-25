@@ -14,7 +14,7 @@ export function BookMateLogo({ size = 40, className }: BookMateLogoProps) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-label="BookMate logo"
+      aria-label="Escucha Libros logo"
       role="img"
     >
       {/* Left page */}

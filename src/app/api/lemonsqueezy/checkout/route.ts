@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     if (!lsCustomerId) {
       const customerRes = await createCustomer(storeId, {
-        name: session.user.name || 'BookMate User',
+        name: session.user.name || 'Usuario de Escucha Libros',
         email: session.user.email || '',
       })
 
@@ -100,10 +100,10 @@ export async function POST(req: NextRequest) {
       productOptions: {
         redirectUrl: `${appUrl}/?checkout=success`,
         receiptButtonUrl: appUrl,
-        receiptThankYouNote: '¡Gracias por suscribirte a BookMate! 📚',
-        confirmationTitle: '¡Bienvenido a BookMate! 🎉',
+        receiptThankYouNote: '¡Gracias por suscribirte a Escucha Libros! 📚',
+        confirmationTitle: '¡Bienvenido a Escucha Libros! 🎉',
         confirmationMessage: 'Tu suscripción está activa. ¡Disfruta la lectura!',
-        confirmationButtonText: 'Ir a BookMate',
+        confirmationButtonText: 'Ir a Escucha Libros',
       },
     })
 

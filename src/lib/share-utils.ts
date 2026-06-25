@@ -1,6 +1,6 @@
-// Social sharing utilities for BookMate
+// Social sharing utilities for Escucha Libros
 // Uses the native Web Share API on mobile + clipboard fallback on desktop.
-// Generates attractive formatted text with #BookMate hashtag and plan-based branding.
+// Generates attractive formatted text with #EscuchaLibros hashtag and plan-based branding.
 
 export type SharePlan = 'free' | 'plus' | 'pro'
 
@@ -12,9 +12,9 @@ interface SharePayload {
 
 // Branding suffix — Pro/Plus users get a premium badge (subtle upgrade incentive)
 function branding(plan: SharePlan): string {
-  if (plan === 'pro') return 'BookMate Pro'
-  if (plan === 'plus') return 'BookMate Plus'
-  return 'BookMate'
+  if (plan === 'pro') return 'Escucha Libros Pro'
+  if (plan === 'plus') return 'Escucha Libros Plus'
+  return 'Escucha Libros'
 }
 
 // Core share function — tries Web Share API, falls back to clipboard copy
@@ -60,9 +60,9 @@ export function buildHighlightShareText(
 📖 ${bookTitle}${authorLine}
 
 Vía ${branding(plan)}
-#BookMate #Lectura`
+#EscuchaLibros #Lectura`
   return {
-    title: 'Mi subrayado en BookMate',
+    title: 'Mi subrayado en Escucha Libros',
     text,
     url: 'https://bookmate-three.vercel.app',
   }
@@ -87,9 +87,9 @@ ${list}
 🔥 ${streakDays} día${streakDays !== 1 ? 's' : ''} de racha
 
 Vía ${branding(plan)}
-#BookMate #Lectura`
+#EscuchaLibros #Lectura`
   return {
-    title: 'Mis logros en BookMate',
+    title: 'Mis logros en Escucha Libros',
     text,
     url: 'https://bookmate-three.vercel.app',
   }
@@ -112,9 +112,9 @@ export function buildWeeklyStatsShareText(
 📅 ${weekDaysRead} día${weekDaysRead !== 1 ? 's' : ''} esta semana
 
 Vía ${branding(plan)}
-#BookMate #Lectura`
+#EscuchaLibros #Lectura`
   return {
-    title: 'Mi semana de lectura en BookMate',
+    title: 'Mi semana de lectura en Escucha Libros',
     text,
     url: 'https://bookmate-three.vercel.app',
   }
@@ -138,7 +138,7 @@ export function buildSummaryShareText(
 ${pointsText}${firstQuote}${targetLine}
 
 Vía ${branding(plan)}
-#BookMate`
+#EscuchaLibros`
   return {
     title: `Resumen IA de ${bookTitle}`,
     text,
