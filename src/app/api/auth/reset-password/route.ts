@@ -87,10 +87,13 @@ export async function POST(req: NextRequest) {
   }
 
   // ─── Update the password in the DB ───
+  // Use `select` to only return the id (avoids any issue if other columns
+  // in the schema don't exist yet in the production DB).
   try {
     await db.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
+      select: { id: true },
     })
   } catch (updateErr) {
     console.error('Reset password: DB update failed:', updateErr)

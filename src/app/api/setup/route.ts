@@ -83,8 +83,6 @@ export async function GET(req: NextRequest) {
       const missingColumns: { name: string; def: string }[] = []
       
       if (!columnNames.includes('password')) missingColumns.push({ name: 'password', def: 'ALTER TABLE "User" ADD COLUMN "password" TEXT' })
-      if (!columnNames.includes('passwordResetToken')) missingColumns.push({ name: 'passwordResetToken', def: 'ALTER TABLE "User" ADD COLUMN "passwordResetToken" TEXT' })
-      if (!columnNames.includes('passwordResetExpires')) missingColumns.push({ name: 'passwordResetExpires', def: 'ALTER TABLE "User" ADD COLUMN "passwordResetExpires" TIMESTAMP(3)' })
       if (!columnNames.includes('avatarUrl')) missingColumns.push({ name: 'avatarUrl', def: 'ALTER TABLE "User" ADD COLUMN "avatarUrl" TEXT' })
       if (!columnNames.includes('isAdmin')) missingColumns.push({ name: 'isAdmin', def: 'ALTER TABLE "User" ADD COLUMN "isAdmin" BOOLEAN NOT NULL DEFAULT false' })
       if (!columnNames.includes('lsCustomerId')) missingColumns.push({ name: 'lsCustomerId', def: 'ALTER TABLE "User" ADD COLUMN "lsCustomerId" TEXT' })
